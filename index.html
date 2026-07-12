@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Conveyance Claim Tracker</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#12294a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Conveyance">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{
+    --navy:#12294a; --blue:#1d5fbf; --blue-light:#eaf1fc; --ink:#1c2530;
+    --muted:#5b6b7c; --line:#d7dee6; --bg:#f4f6f9; --card:#ffffff;
+    --good:#1a8a4a; --warn:#b5651d; --bad:#c0392b;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif;font-size:14px;}
+  .app{max-width:1080px;margin:0 auto;padding:18px 18px 60px;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+  .brand{display:flex;flex-direction:column;}
+  .brand .co{font-size:12px;color:var(--muted);letter-spacing:.03em;text-transform:uppercase;}
+  .brand h1{margin:2px 0 0;font-size:20px;color:var(--navy);}
+  .who{font-size:12px;color:var(--muted);text-align:right;}
+  .tabs{display:flex;gap:6px;border-bottom:2px solid var(--line);margin-bottom:16px;flex-wrap:wrap;}
+  .tab{padding:9px 14px;cursor:pointer;font-size:13px;font-weight:bold;color:var(--muted);border-bottom:3px solid transparent;user-select:none;}
+  .tab.active{color:var(--blue);border-bottom-color:var(--blue);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:14px;}
+  .card h2{margin:0 0 12px;font-size:15px;color:var(--navy);}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;}
+  label{display:block;font-size:11px;font-weight:bold;color:var(--muted);text-transform:uppercase;letter-spacing:.02em;margin-bottom:3px;}
+  input,select,textarea{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:5px;font-size:13px;font-family:inherit;background:#fff;color:var(--ink);}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
+  .field{margin-bottom:8px;}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:6px;border:1px solid var(--blue);background:var(--blue);color:#fff;font-size:13px;font-weight:bold;cursor:pointer;}
+  .btn:hover{background:#164a99;}
+  .btn.secondary{background:#fff;color:var(--blue);}
+  .btn.ghost{background:transparent;border-color:var(--line);color:var(--muted);}
+  .btn.danger{background:#fff;border-color:var(--bad);color:var(--bad);}
+  .btn.small{padding:4px 9px;font-size:12px;}
+  .legs-table{width:100%;border-collapse:collapse;margin:10px 0;}
+  .legs-table th{font-size:10px;text-transform:uppercase;color:var(--muted);text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);}
+  .legs-table td{padding:4px 6px;vertical-align:top;}
+  .legs-table input,.legs-table select{padding:5px 6px;font-size:12px;}
+  .row-actions{text-align:right;margin-top:8px;display:flex;justify-content:space-between;align-items:center;}
+  .day-total{font-weight:bold;color:var(--navy);}
+  .evidence-drop{border:2px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);font-size:12px;cursor:pointer;}
+  .evidence-drop:hover{border-color:var(--blue);color:var(--blue);}
+  .chip-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .chip{display:flex;align-items:center;gap:6px;background:var(--blue-light);border:1px solid #c7dafc;border-radius:6px;padding:5px 8px;font-size:12px;}
+  .chip img{width:26px;height:26px;object-fit:cover;border-radius:3px;}
+  .chip .x{cursor:pointer;color:var(--bad);font-weight:bold;padding:0 3px;}
+  table.tracker{width:100%;border-collapse:collapse;font-size:12px;}
+  table.tracker th,table.tracker td{border:1px solid var(--line);padding:5px 6px;}
+  table.tracker thead th{background:var(--navy);color:#fff;font-size:11px;text-transform:uppercase;}
+  table.tracker td.num{text-align:right;}
+  table.tracker tr.grand td{font-weight:bold;background:#fbfbfb;}
+  .month-controls{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;}
+  .empty{color:var(--muted);font-style:italic;padding:20px;text-align:center;}
+  .toast{position:fixed;bottom:18px;right:18px;background:var(--navy);color:#fff;padding:10px 16px;border-radius:6px;font-size:13px;opacity:0;transform:translateY(8px);transition:.25s;pointer-events:none;z-index:50;max-width:280px;}
+  .toast.show{opacity:1;transform:translateY(0);}
+  .note{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5;}
+  .ev-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+  .ev-card{border:1px solid var(--line);border-radius:8px;padding:10px;background:#fff;}
+  .ev-card img{width:100%;height:110px;object-fit:cover;border-radius:5px;background:#f0f2f5;}
+  .ev-card .fname{font-size:12px;font-weight:bold;margin-top:6px;word-break:break-all;}
+  .ev-card .meta{font-size:11px;color:var(--muted);margin-top:2px;}
+  .tag-pill{display:inline-block;background:var(--blue-light);color:var(--blue);border-radius:10px;padding:1px 8px;font-size:10.5px;margin-top:5px;}
+  .ev-actions{display:flex;gap:6px;margin-top:8px;}
+  .entries-list{margin-top:4px;}
+  .entry-row{display:flex;justify-content:space-between;align-items:center;padding:8px 4px;border-bottom:1px solid var(--line);font-size:13px;}
+  .entry-row .meta{color:var(--muted);font-size:12px;}
+  .badge{background:var(--blue-light);color:var(--blue);border-radius:10px;padding:1px 8px;font-size:11px;font-weight:bold;}
+  .lock-screen{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:100;}
+  .lock-box{background:#fff;padding:26px;border-radius:10px;width:280px;text-align:center;}
+  .lock-box h2{margin:0 0 12px;color:var(--navy);font-size:16px;}
+  .sync-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;}
+  .sync-dot.ok{background:var(--good);}
+  .sync-dot.bad{background:var(--bad);}
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;}
+  .stat-card{background:var(--blue-light);border-radius:8px;padding:14px;text-align:center;}
+  .stat-card .num{font-size:22px;font-weight:bold;color:var(--navy);}
+  .stat-card .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;margin-top:4px;}
+  table.months{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px;}
+  table.months th,table.months td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;}
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:10px 0;}
+  .table-scroll table{min-width:640px;}
+  table.months td.num{text-align:right;}
+</style>
+</head>
+<body>
+
+<div class="lock-screen" id="lockScreen">
+  <div class="lock-box">
+    <h2>Enter passcode</h2>
+    <input type="password" id="passcodeInput" placeholder="Passcode" style="margin-bottom:10px">
+    <button class="btn" style="width:100%" onclick="tryUnlock()">Unlock</button>
+    <div class="note" id="lockNote">Basic access gate — change APP_PASSCODE in the file before deploying. This is not strong security; the data itself is protected by Supabase Row Level Security rules.</div>
+  </div>
+</div>
+
+<div class="app" id="appRoot" style="display:none">
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="co">LRS Services Pvt. Ltd.</span>
+      <h1>Local Conveyance Claim Tracker</h1>
+    </div>
+    <div class="who">
+      <div id="whoBox"></div>
+      <div class="note"><span class="sync-dot" id="syncDot"></span><span id="syncText">Connecting…</span></div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="dashboard">Dashboard</div>
+    <div class="tab" data-tab="entry">+ New Entry</div>
+    <div class="tab" data-tab="month">This Month's Claim</div>
+    <div class="tab" data-tab="evidence">Evidence Vault</div>
+    <div class="tab" data-tab="profile">Employee Details</div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="panel active" id="panel-dashboard">
+    <div class="card">
+      <h2>At a glance</h2>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="num" id="statAllTime">₹0</div><div class="lbl">All-time claimed</div></div>
+        <div class="stat-card"><div class="num" id="statThisMonth">₹0</div><div class="lbl">This month</div></div>
+        <div class="stat-card"><div class="num" id="statEntries">0</div><div class="lbl">Entries logged</div></div>
+        <div class="stat-card"><div class="num" id="statFiles">0</div><div class="lbl">Evidence files stored</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Month-by-month</h2>
+      <div class="note">Once you've received reimbursement for a month, you can permanently delete that month's data here to free up your limited free-tier storage. This cannot be undone, so grab a copy first if in doubt.</div>
+      <div id="monthsTableWrap"></div>
+    </div>
+  </div>
+
+  <!-- NEW ENTRY -->
+  <div class="panel" id="panel-entry">
+    <div class="card">
+      <h2 id="entryFormTitle">Add a day's travel</h2>
+      <div class="grid">
+        <div class="field"><label>Date</label><input type="date" id="f_date"></div>
+        <div class="field"><label>Customer / Site Name</label><input type="text" id="f_customer" placeholder="e.g. VVF India"></div>
+        <div class="field"><label>Project (optional)</label><input type="text" id="f_project" placeholder="e.g. Network Refresh"></div>
+      </div>
+
+      <div class="table-scroll">
+      <table class="legs-table" id="legsTable">
+        <thead><tr>
+          <th style="width:9%">Start</th><th style="width:9%">End</th>
+          <th style="width:19%">From</th><th style="width:19%">To</th>
+          <th style="width:10%">Mode</th><th style="width:10%">Distance (km)</th>
+          <th style="width:9%">Rate/km</th><th style="width:10%">Amount (₹)</th><th style="width:5%"></th>
+        </tr></thead>
+        <tbody id="legsBody"></tbody>
+      </table>
+      </div>
+      <button class="btn secondary small" onclick="addLeg()">+ Add journey leg</button>
+
+      <div class="row-actions">
+        <div class="day-total">Day total: ₹<span id="dayTotal">0</span></div>
+        <div>
+          <button class="btn ghost" onclick="resetEntryForm()">Cancel</button>
+          <button class="btn" onclick="saveEntry()">Save entry</button>
+        </div>
+      </div>
+      <div class="note">Same day, same claim (e.g. morning + evening return)? Use "+ Add journey leg" so they merge into one claim block. A different customer/trip later that day? Save it as a new entry — it'll show as its own row, exactly like the original sheet.</div>
+    </div>
+
+    <div class="card">
+      <h2>Supporting evidence (receipts / tickets / bills)</h2>
+      <div class="evidence-drop" onclick="document.getElementById('fileInput').click()">
+        Click to attach a photo, scan or PDF for this entry
+      </div>
+      <input type="file" id="fileInput" accept="image/*,application/pdf" multiple style="display:none" onchange="handleFiles(this.files)">
+      <div class="field" style="margin-top:10px">
+        <label>Tag for these files (e.g. Auto fare, Train ticket, Toll receipt)</label>
+        <input type="text" id="f_tag" placeholder="Auto fare receipt">
+      </div>
+      <div class="chip-list" id="pendingChips"></div>
+      <div class="note">Files upload to Supabase Storage when you click "Save entry" above, organized into a folder per month. Images are auto-compressed before upload.</div>
+    </div>
+  </div>
+
+  <!-- MONTH VIEW -->
+  <div class="panel" id="panel-month">
+    <div class="card">
+      <div class="month-controls">
+        <div class="field" style="max-width:160px"><label>Month</label>
+          <select id="monthSel"></select>
+        </div>
+        <div class="field" style="max-width:120px"><label>Year</label>
+          <select id="yearSel"></select>
+        </div>
+        <button class="btn secondary" onclick="renderMonth()">Refresh</button>
+        <button class="btn" id="exportBtn" onclick="exportPolishedExcel()">Export to Excel</button>
+      </div>
+      <div id="monthTableWrap"></div>
+    </div>
+    <div class="card">
+      <h2>Entries this month</h2>
+      <div class="entries-list" id="entriesList"></div>
+    </div>
+  </div>
+
+  <!-- EVIDENCE -->
+  <div class="panel" id="panel-evidence">
+    <div class="card">
+      <h2>Evidence Vault <span class="note" style="display:inline">(mirrors "Sheet2" of the exported tracker)</span></h2>
+      <div class="ev-grid" id="evGrid"></div>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="panel" id="panel-profile">
+    <div class="card">
+      <h2>Employee details</h2>
+      <div class="grid">
+        <div class="field"><label>Name of Employee</label><input type="text" id="p_name"></div>
+        <div class="field"><label>Employee Code</label><input type="text" id="p_code"></div>
+        <div class="field"><label>Employee Grade</label><input type="text" id="p_grade"></div>
+        <div class="field"><label>Location</label><input type="text" id="p_location"></div>
+        <div class="field"><label>Default Project</label><input type="text" id="p_project"></div>
+        <div class="field"><label>Address (for form header)</label><input type="text" id="p_address"></div>
+      </div>
+      <button class="btn" onclick="saveProfile()">Save details</button>
+    </div>
+
+    <div class="card">
+      <h2>Change passcode</h2>
+      <div class="grid">
+        <div class="field"><label>Current passcode</label><input type="password" id="pc_current"></div>
+        <div class="field"><label>New passcode</label><input type="password" id="pc_new"></div>
+        <div class="field"><label>Confirm new passcode</label><input type="password" id="pc_confirm"></div>
+      </div>
+      <button class="btn" onclick="changePasscode()">Update passcode</button>
+      <div class="note">Stored as a one-way hash in Supabase — not as plain text in this file — so it isn't visible if someone views the page source.</div>
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script>
+/* ============ CONFIG — edit these before deploying ============ */
+const SUPABASE_URL = 'https://vrooofaraqancenuzuzz.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_5Od9qoV_4a2pMylxyU1eQg_qGTfczrO';
+const EVIDENCE_BUCKET = 'evidence';
+const DEFAULT_PASSCODE_HASH = '057ba03d6c44104863dc7361fe4578965d1887360f90a0895882e58a6248fc86'; // sha256("changeme") — used only until you set your own in the app
+/* ================================================================ */
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+async function sha256Hex(text){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+let currentPasscodeHash = DEFAULT_PASSCODE_HASH;
+const passcodeReady = (async ()=>{
+  try{
+    const { data } = await sb.from('profile').select('passcode_hash').eq('id',1).maybeSingle();
+    if(data && data.passcode_hash) currentPasscodeHash = data.passcode_hash;
+  }catch(e){ console.error('Could not load passcode from Supabase, using default', e); }
+})();
+
+/* ---------------- lock screen ---------------- */
+async function tryUnlock(){
+  const btn = document.querySelector('#lockScreen button');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  await passcodeReady;
+  const val = document.getElementById('passcodeInput').value;
+  const enteredHash = await sha256Hex(val);
+  btn.disabled = false; btn.textContent = 'Unlock';
+  if(enteredHash === currentPasscodeHash){
+    localStorage.setItem('conveyance_unlocked', 'yes');
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('appRoot').style.display = 'block';
+    boot();
+  } else {
+    document.getElementById('lockNote').textContent = 'Incorrect passcode. Try again.';
+    document.getElementById('lockNote').style.color = '#c0392b';
+  }
+}
+if(localStorage.getItem('conveyance_unlocked') === 'yes'){
+  document.getElementById('lockScreen').style.display = 'none';
+  document.getElementById('appRoot').style.display = 'block';
+}
+
+/* ---------------- state ---------------- */
+let profile = {name:'Rohit Trimukhe', code:'LRS 813', grade:'', location:'Mumbai', project:'', address:''};
+let entries = [];
+let evidence = [];
+let currentLegs = [];
+let pendingFiles = [];
+let editingId = null;
+
+const MODES = ['Auto','Taxi','Train','Bus','Two-wheeler','Own Car','Other'];
+
+function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 2800);
+}
+function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('en-IN'); }
+function setSync(ok, text){
+  document.getElementById('syncDot').className = 'sync-dot ' + (ok?'ok':'bad');
+  document.getElementById('syncText').textContent = text;
+}
+
+/* ---------------- Supabase data layer ---------------- */
+async function loadProfile(){
+  const { data, error } = await sb.from('profile').select('*').eq('id',1).maybeSingle();
+  if(error){ setSync(false,'Profile load failed'); console.error(error); return; }
+  if(data){
+    profile = { name:data.name||'', code:data.code||'', grade:data.grade||'', location:data.location||'', project:data.project||'', address:data.address||'' };
+  }
+  document.getElementById('p_name').value = profile.name||'';
+  document.getElementById('p_code').value = profile.code||'';
+  document.getElementById('p_grade').value = profile.grade||'';
+  document.getElementById('p_location').value = profile.location||'';
+  document.getElementById('p_project').value = profile.project||'';
+  document.getElementById('p_address').value = profile.address||'';
+  document.getElementById('whoBox').innerHTML = `<strong>${profile.name||''}</strong> · ${profile.code||''}${profile.location? ' · '+profile.location:''}`;
+}
+
+async function changePasscode(){
+  const current = document.getElementById('pc_current').value;
+  const next = document.getElementById('pc_new').value;
+  const confirm2 = document.getElementById('pc_confirm').value;
+  if(!current || !next){ toast('Fill in all passcode fields'); return; }
+  if(next !== confirm2){ toast("New passcode entries don't match"); return; }
+  if(next.length < 4){ toast('Pick a longer passcode'); return; }
+
+  const currentHash = await sha256Hex(current);
+  if(currentHash !== currentPasscodeHash){ toast('Current passcode is incorrect'); return; }
+
+  const newHash = await sha256Hex(next);
+  const { error } = await sb.from('profile').upsert({ id:1, passcode_hash: newHash });
+  if(error){ toast('Could not update passcode: ' + error.message); return; }
+
+  currentPasscodeHash = newHash;
+  document.getElementById('pc_current').value = '';
+  document.getElementById('pc_new').value = '';
+  document.getElementById('pc_confirm').value = '';
+  toast('Passcode updated');
+}
+
+async function saveProfile(){
+  profile = {
+    name: document.getElementById('p_name').value.trim(),
+    code: document.getElementById('p_code').value.trim(),
+    grade: document.getElementById('p_grade').value.trim(),
+    location: document.getElementById('p_location').value.trim(),
+    project: document.getElementById('p_project').value.trim(),
+    address: document.getElementById('p_address').value.trim()
+  };
+  const { error } = await sb.from('profile').upsert({ id:1, ...profile });
+  if(error){ toast('Could not save — ' + error.message); return; }
+  document.getElementById('whoBox').innerHTML = `<strong>${profile.name}</strong> · ${profile.code}${profile.location? ' · '+profile.location:''}`;
+  toast('Employee details saved');
+}
+
+async function loadEntries(){
+  const { data, error } = await sb.from('entries').select('*').order('date', {ascending:true});
+  if(error){ setSync(false,'Entries load failed'); console.error(error); entries=[]; return; }
+  entries = (data||[]).map(row=>({
+    id: row.id, date: row.date, customerName: row.customer_name||'', project: row.project||'', legs: row.legs||[]
+  }));
+}
+
+async function loadEvidence(){
+  const { data, error } = await sb.from('evidence').select('*').order('uploaded_at', {ascending:false});
+  if(error){ console.error(error); evidence=[]; return; }
+  evidence = (data||[]).map(row=>{
+    const { data: pub } = sb.storage.from(EVIDENCE_BUCKET).getPublicUrl(row.storage_path);
+    return {
+      id: row.id, entryId: row.entry_id, fileName: row.file_name, mimeType: row.mime_type||'application/octet-stream',
+      tag: row.tag||'', storagePath: row.storage_path, url: pub? pub.publicUrl : '', uploadedAt: row.uploaded_at
+    };
+  });
+}
+
+/* ---------------- tabs ---------------- */
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-'+t.dataset.tab).classList.add('active');
+    if(t.dataset.tab==='month') renderMonth();
+    if(t.dataset.tab==='evidence') renderEvidenceGrid();
+    if(t.dataset.tab==='dashboard') renderDashboard();
+  });
+});
+
+/* ---------------- entry form: legs ---------------- */
+function blankLeg(){ return {start:'',end:'',from:'',to:'',mode:'Auto',distance:'',rate:'',amount:''}; }
+
+function renderLegs(){
+  const body = document.getElementById('legsBody');
+  body.innerHTML = currentLegs.map((l,i)=>`
+    <tr>
+      <td><input type="time" value="${l.start}" onchange="updateLeg(${i},'start',this.value)"></td>
+      <td><input type="time" value="${l.end}" onchange="updateLeg(${i},'end',this.value)"></td>
+      <td><input type="text" value="${l.from}" placeholder="Start location" onchange="updateLeg(${i},'from',this.value)"></td>
+      <td><input type="text" value="${l.to}" placeholder="End location" onchange="updateLeg(${i},'to',this.value)"></td>
+      <td><select onchange="updateLeg(${i},'mode',this.value)">${MODES.map(m=>`<option ${m===l.mode?'selected':''}>${m}</option>`).join('')}</select></td>
+      <td><input type="number" step="0.1" value="${l.distance}" onchange="updateLeg(${i},'distance',this.value)"></td>
+      <td><input type="number" step="0.1" value="${l.rate}" onchange="updateLeg(${i},'rate',this.value)"></td>
+      <td><input type="number" step="1" value="${l.amount}" onchange="updateLeg(${i},'amount',this.value)"></td>
+      <td><span class="x" style="cursor:pointer;color:#c0392b;font-weight:bold" onclick="removeLeg(${i})">✕</span></td>
+    </tr>`).join('');
+  updateDayTotal();
+}
+function addLeg(){ currentLegs.push(blankLeg()); renderLegs(); }
+function removeLeg(i){ currentLegs.splice(i,1); renderLegs(); }
+function updateLeg(i,field,val){ currentLegs[i][field]=val; if(field==='amount') updateDayTotal(); }
+function updateDayTotal(){
+  const total = currentLegs.reduce((s,l)=> s + (parseFloat(l.amount)||0), 0);
+  document.getElementById('dayTotal').textContent = money(total);
+}
+
+function resetEntryForm(){
+  editingId = null;
+  document.getElementById('entryFormTitle').textContent = "Add a day's travel";
+  document.getElementById('f_date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('f_customer').value = '';
+  document.getElementById('f_project').value = profile.project||'';
+  document.getElementById('f_tag').value = '';
+  currentLegs = [blankLeg()];
+  pendingFiles = [];
+  renderLegs();
+  renderPendingChips();
+}
+
+/* ---------------- evidence: file handling ---------------- */
+function compressImage(file){
+  return new Promise((resolve)=>{
+    if(!file.type.startsWith('image/')){
+      resolve({ blob:file, mimeType:file.type||'application/octet-stream' });
+      return;
+    }
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      img.onload = ()=>{
+        const maxW = 1100;
+        const scale = Math.min(1, maxW / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width*scale);
+        canvas.height = Math.round(img.height*scale);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        canvas.toBlob(blob=> resolve({ blob, mimeType:'image/jpeg' }), 'image/jpeg', 0.8);
+      };
+      img.onerror = ()=> resolve({ blob:file, mimeType:file.type });
+      img.src = e.target.result;
+    };
+    reader.onerror = ()=> resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleFiles(fileList){
+  for(const file of Array.from(fileList)){
+    const result = await compressImage(file);
+    if(!result){ toast('Could not read '+file.name); continue; }
+    pendingFiles.push({ fileName:file.name, mimeType:result.mimeType, blob:result.blob, previewUrl: URL.createObjectURL(result.blob) });
+  }
+  document.getElementById('fileInput').value = '';
+  renderPendingChips();
+}
+function renderPendingChips(){
+  const wrap = document.getElementById('pendingChips');
+  wrap.innerHTML = pendingFiles.map((f,i)=>`
+    <div class="chip">
+      ${f.mimeType.startsWith('image/') ? `<img src="${f.previewUrl}">` : '📄'}
+      <span>${f.fileName}</span>
+      <span class="x" onclick="removePendingFile(${i})">✕</span>
+    </div>`).join('');
+}
+function removePendingFile(i){ pendingFiles.splice(i,1); renderPendingChips(); }
+
+/* ---------------- save / edit / delete entry ---------------- */
+async function saveEntry(){
+  const date = document.getElementById('f_date').value;
+  if(!date){ toast('Pick a date first'); return; }
+  const legs = currentLegs.filter(l=> l.from || l.to || l.amount);
+  if(legs.length===0){ toast('Add at least one journey leg'); return; }
+
+  const id = editingId || uid('e');
+  const row = {
+    id, date,
+    customer_name: document.getElementById('f_customer').value.trim(),
+    project: document.getElementById('f_project').value.trim(),
+    legs: legs.map(l=>({
+      start:l.start, end:l.end, from:l.from, to:l.to, mode:l.mode,
+      distance: l.distance, rate: l.rate, amount: parseFloat(l.amount)||0
+    }))
+  };
+  const { error } = await sb.from('entries').upsert(row);
+  if(error){ toast('Save failed: ' + error.message); return; }
+
+  const tag = document.getElementById('f_tag').value.trim() || 'Receipt';
+  const monthFolder = date.slice(0,7); // YYYY-MM
+  for(const f of pendingFiles){
+    const path = `${monthFolder}/${id}/${uid('f')}-${f.fileName}`;
+    const { error: upErr } = await sb.storage.from(EVIDENCE_BUCKET).upload(path, f.blob, { contentType: f.mimeType, upsert:false });
+    if(upErr){ toast('Upload failed for ' + f.fileName + ': ' + upErr.message); continue; }
+    const evRow = { id: uid('ev'), entry_id: id, file_name: f.fileName, mime_type: f.mimeType, tag, storage_path: path };
+    const { error: insErr } = await sb.from('evidence').insert(evRow);
+    if(insErr) toast('Could not record evidence: ' + insErr.message);
+  }
+
+  toast('Entry saved');
+  await loadEntries(); await loadEvidence();
+  resetEntryForm();
+  renderMonth(); renderEvidenceGrid(); renderDashboard();
+}
+
+async function deleteEntry(id){
+  if(!confirm('Delete this entry and its linked evidence?')) return;
+  const linked = evidence.filter(e=>e.entryId===id);
+  if(linked.length){
+    await sb.storage.from(EVIDENCE_BUCKET).remove(linked.map(e=>e.storagePath));
+  }
+  const { error } = await sb.from('entries').delete().eq('id', id);
+  if(error){ toast('Delete failed: ' + error.message); return; }
+  await loadEntries(); await loadEvidence();
+  renderMonth(); renderEvidenceGrid(); renderDashboard();
+  toast('Entry deleted');
+}
+
+function editEntry(id){
+  const e = entries.find(x=>x.id===id);
+  if(!e) return;
+  editingId = id;
+  document.querySelector('.tab[data-tab="entry"]').click();
+  document.getElementById('entryFormTitle').textContent = 'Edit entry — ' + e.date;
+  document.getElementById('f_date').value = e.date;
+  document.getElementById('f_customer').value = e.customerName||'';
+  document.getElementById('f_project').value = e.project||'';
+  currentLegs = e.legs.map(l=>({...l}));
+  pendingFiles = [];
+  renderLegs(); renderPendingChips();
+  document.getElementById('f_tag').value='';
+}
+
+/* ---------------- month view ---------------- */
+function populateMonthYearSelectors(){
+  const monthSel = document.getElementById('monthSel');
+  const yearSel = document.getElementById('yearSel');
+  const names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  monthSel.innerHTML = names.map((n,i)=>`<option value="${i}">${n}</option>`).join('');
+  const now = new Date();
+  monthSel.value = now.getMonth();
+  const years = [];
+  for(let y=now.getFullYear()-2; y<=now.getFullYear()+1; y++) years.push(y);
+  yearSel.innerHTML = years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  yearSel.value = now.getFullYear();
+}
+
+function monthEntries(){
+  const m = parseInt(document.getElementById('monthSel').value,10);
+  const y = parseInt(document.getElementById('yearSel').value,10);
+  return entries.filter(e=>{
+    const d = new Date(e.date+'T00:00:00');
+    return d.getMonth()===m && d.getFullYear()===y;
+  }).sort((a,b)=> a.date.localeCompare(b.date));
+}
+function monthEvidence(list){
+  return evidence.filter(ev => list.some(e => e.id === ev.entryId));
+}
+
+function fmtDate(d){
+  const dt = new Date(d+'T00:00:00');
+  const dd = String(dt.getDate()).padStart(2,'0');
+  const mons = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${dd}-${mons[dt.getMonth()]}-${String(dt.getFullYear()).slice(-2)}`;
+}
+function fmtTime(t){
+  if(!t) return '';
+  const [h,m] = t.split(':').map(Number);
+  const ap = h>=12 ? 'PM':'AM';
+  const h12 = ((h%12)||12);
+  return `${h12}:${String(m).padStart(2,'0')} ${ap}`;
+}
+
+function renderMonth(){
+  const list = monthEntries();
+  const wrap = document.getElementById('monthTableWrap');
+  const listBox = document.getElementById('entriesList');
+
+  if(list.length===0){
+    wrap.innerHTML = '<div class="empty">No entries logged for this month yet.</div>';
+    listBox.innerHTML = '<div class="empty">Nothing to show.</div>';
+    return;
+  }
+
+  let grand = 0;
+  let rows = '';
+  list.forEach(e=>{
+    const dayTotal = e.legs.reduce((s,l)=>s+(parseFloat(l.amount)||0),0);
+    grand += dayTotal;
+    e.legs.forEach((l,i)=>{
+      rows += `<tr>
+        <td>${i===0? fmtDate(e.date):''}</td>
+        <td>${fmtTime(l.start)}</td><td>${fmtTime(l.end)}</td>
+        <td>${l.from||''}</td><td>${l.to||''}</td>
+        <td>${i===0? (e.customerName||''):''}</td>
+        <td>${l.mode||''}</td>
+        <td class="num">${l.distance? l.distance+' km':''}</td>
+        <td class="num">${l.rate||''}</td>
+        <td class="num">${money(l.amount)}</td>
+        <td class="num">${i===0? money(dayTotal):''}</td>
+      </tr>`;
+    });
+  });
+
+  wrap.innerHTML = `
+    <div class="table-scroll">
+    <table class="tracker">
+      <thead><tr>
+        <th>Date</th><th>Start</th><th>End</th><th>From</th><th>To</th>
+        <th>Customer</th><th>Mode</th><th>Distance</th><th>Rate/km</th><th>Total</th><th>Grand Total</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr class="grand"><td colspan="10" style="text-align:right">Total :</td><td class="num">₹${money(grand)}</td></tr></tfoot>
+    </table>
+    </div>`;
+
+  listBox.innerHTML = list.map(e=>{
+    const dayTotal = e.legs.reduce((s,l)=>s+(parseFloat(l.amount)||0),0);
+    const evCount = evidence.filter(ev=>ev.entryId===e.id).length;
+    return `<div class="entry-row">
+      <div><strong>${fmtDate(e.date)}</strong> — ${e.customerName||'—'} <span class="meta">(${e.legs.length} leg${e.legs.length>1?'s':''})</span></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="badge">₹${money(dayTotal)}</span>
+        ${evCount? `<span class="badge">${evCount} file${evCount>1?'s':''}</span>`:''}
+        <button class="btn ghost small" onclick="editEntry('${e.id}')">Edit</button>
+        <button class="btn danger small" onclick="deleteEntry('${e.id}')">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------------- dashboard ---------------- */
+function renderDashboard(){
+  const now = new Date();
+  const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const allTimeTotal = entries.reduce((s,e)=> s + e.legs.reduce((s2,l)=>s2+(parseFloat(l.amount)||0),0), 0);
+  const thisMonthTotal = entries.filter(e=>e.date.startsWith(thisMonthKey))
+    .reduce((s,e)=> s + e.legs.reduce((s2,l)=>s2+(parseFloat(l.amount)||0),0), 0);
+
+  document.getElementById('statAllTime').textContent = '₹' + money(allTimeTotal);
+  document.getElementById('statThisMonth').textContent = '₹' + money(thisMonthTotal);
+  document.getElementById('statEntries').textContent = entries.length;
+  document.getElementById('statFiles').textContent = evidence.length;
+
+  const byMonth = {};
+  entries.forEach(e=>{
+    const key = e.date.slice(0,7);
+    if(!byMonth[key]) byMonth[key] = { total:0, count:0 };
+    byMonth[key].total += e.legs.reduce((s,l)=>s+(parseFloat(l.amount)||0),0);
+    byMonth[key].count += 1;
+  });
+  const keys = Object.keys(byMonth).sort().reverse();
+  const wrap = document.getElementById('monthsTableWrap');
+  if(keys.length===0){ wrap.innerHTML = '<div class="empty">No data yet.</div>'; return; }
+
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  wrap.innerHTML = `<div class="table-scroll"><table class="months"><thead><tr>
+    <th>Month</th><th>Entries</th><th>Total</th><th>Files</th><th></th>
+  </tr></thead><tbody>
+  ${keys.map(k=>{
+    const [y,m] = k.split('-');
+    const label = `${monthNames[parseInt(m,10)-1]} ${y}`;
+    const fileCount = evidence.filter(ev=>{
+      const linked = entries.find(e=>e.id===ev.entryId);
+      return linked && linked.date.startsWith(k);
+    }).length;
+    return `<tr>
+      <td>${label}</td>
+      <td>${byMonth[k].count}</td>
+      <td class="num">₹${money(byMonth[k].total)}</td>
+      <td class="num">${fileCount}</td>
+      <td><button class="btn danger small" onclick="deleteMonthData('${k}','${label}')">Delete month</button></td>
+    </tr>`;
+  }).join('')}
+  </tbody></table></div>`;
+}
+
+async function deleteMonthData(monthKey, label){
+  const monthList = entries.filter(e=> e.date.startsWith(monthKey));
+  if(monthList.length===0){ toast('Nothing to delete for '+label); return; }
+  if(!confirm(`Permanently delete ALL ${monthList.length} entr${monthList.length>1?'ies':'y'} and evidence for ${label}? Make sure you've already exported/received reimbursement.`)) return;
+  if(!confirm('This cannot be undone. Delete now?')) return;
+
+  for(const e of monthList){
+    const linked = evidence.filter(ev=>ev.entryId===e.id);
+    if(linked.length){ await sb.storage.from(EVIDENCE_BUCKET).remove(linked.map(ev=>ev.storagePath)); }
+    await sb.from('entries').delete().eq('id', e.id);
+  }
+  await loadEntries(); await loadEvidence();
+  renderDashboard(); renderMonth(); renderEvidenceGrid();
+  toast(`Deleted ${label} data`);
+}
+
+/* ---------------- evidence vault ---------------- */
+function renderEvidenceGrid(){
+  const grid = document.getElementById('evGrid');
+  if(evidence.length===0){ grid.innerHTML = '<div class="empty">No evidence uploaded yet.</div>'; return; }
+  grid.innerHTML = evidence.map(ev=>{
+    const linked = entries.find(e=>e.id===ev.entryId);
+    return `<div class="ev-card">
+      ${ev.mimeType.startsWith('image/') ? `<img src="${ev.url}">` : `<div style="height:110px;display:flex;align-items:center;justify-content:center;font-size:32px;background:#f0f2f5;border-radius:5px;">📄</div>`}
+      <div class="fname">${ev.fileName}</div>
+      <div class="meta">${linked? fmtDate(linked.date)+' · '+(linked.customerName||''): 'Unlinked'}</div>
+      <div class="tag-pill">${ev.tag}</div>
+      <div class="ev-actions">
+        <button class="btn secondary small" onclick="window.open('${ev.url}','_blank')">Open</button>
+        <button class="btn danger small" onclick="deleteEvidence('${ev.id}')">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function deleteEvidence(id){
+  if(!confirm('Delete this file?')) return;
+  const ev = evidence.find(e=>e.id===id);
+  if(ev){ await sb.storage.from(EVIDENCE_BUCKET).remove([ev.storagePath]); }
+  await sb.from('evidence').delete().eq('id', id);
+  await loadEvidence();
+  renderEvidenceGrid(); renderMonth(); renderDashboard();
+}
+
+/* ---------------- helpers shared with export ---------------- */
+function excelDate(dstr){ return fmtDate(dstr); }
+function excelTime(t){ return fmtTime(t); }
+function getImageDims(blob){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = ()=>{ resolve({w:img.naturalWidth, h:img.naturalHeight}); URL.revokeObjectURL(url); };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+function borderBox(top,bottom,left,right){
+  return { top: top?{style:top}:undefined, bottom: bottom?{style:bottom}:undefined,
+           left: left?{style:left}:undefined, right: right?{style:right}:undefined };
+}
+
+/* ---------------- EXPORT: fully client-side, matches original tracker exactly ---------------- */
+async function exportPolishedExcel(){
+  const list = monthEntries();
+  if(list.length===0){ toast('No entries to export for this month'); return; }
+  const btn = document.getElementById('exportBtn');
+  btn.disabled = true; btn.textContent = 'Building…';
+
+  try{
+    const FONT = 'Arial';
+    const wb = new ExcelJS.Workbook();
+    wb.creator = profile.name || 'LRS Services Pvt. Ltd.';
+    wb.calcProperties.fullCalcOnLoad = true;
+    const ws = wb.addWorksheet('Sheet1');
+
+    const widths = [16.5,13,13,30,30,28,15,15,15,15,15];
+    widths.forEach((w,i)=> ws.getColumn(i+1).width = w);
+
+    function setCell(coord, value, opts={}){
+      const c = ws.getCell(coord);
+      if(value !== null && value !== undefined) c.value = value;
+      c.font = { name:FONT, size: opts.size||11, bold: !!opts.bold,
+                 color: opts.color?{argb:opts.color}:undefined, underline: !!opts.underline };
+      c.alignment = { horizontal: opts.h, vertical: opts.v, wrapText: !!opts.wrap };
+      return c;
+    }
+
+    ws.mergeCells('A1:K1'); setCell('A1','LRS Services Pvt. Ltd.',{bold:true,h:'center'});
+    ws.mergeCells('A2:K2'); setCell('A2','Address:-'+(profile.address? ' '+profile.address:''),{bold:true});
+    ws.mergeCells('A3:K3'); setCell('A3','LOCAL CONVEYANCE CLAIM FORM',{bold:true,h:'center'});
+    ws.mergeCells('A4:B4'); setCell('A4','S.No.',{bold:true,h:'center'});
+    ws.mergeCells('C4:D4'); setCell('C4','Description',{bold:true});
+    ws.mergeCells('E4:K4');
+
+    const labels = [
+      [5,1,`Name of Employee: ${profile.name||''}`],
+      [6,2,`Employee Code: ${profile.code||''}`],
+      [7,3,`Employee Grade: ${profile.grade||''}`],
+      [8,4,`Location: ${profile.location||''}`],
+      [9,5,`Project: ${profile.project||''}`]
+    ];
+    labels.forEach(([row,num,text])=>{
+      ws.mergeCells(`A${row}:B${row}`); setCell(`A${row}`, num, {bold:true,h:'center'});
+      ws.mergeCells(`C${row}:D${row}`); setCell(`C${row}`, text, {bold:true});
+      ws.mergeCells(`E${row}:K${row}`);
+    });
+
+    ws.mergeCells('A10:K10'); setCell('A10','DETAILS OF THE LOCAL CONVEYANCE CLAIMS',{bold:true,h:'center'});
+
+    ws.mergeCells('A11:C11'); setCell('A11','Date of Journey & Time',{bold:true,h:'center',v:'middle',wrap:true});
+    ws.mergeCells('D11:E11'); setCell('D11','Particulars',{bold:true,h:'center',v:'middle',wrap:true});
+    ws.mergeCells('F11:F12'); setCell('F11','Customer Name',{bold:true,h:'center',v:'middle',wrap:true});
+    ws.mergeCells('G11:G12'); setCell('G11','Mode of Convenyance',{bold:true,h:'center',v:'middle',wrap:true});
+    ws.mergeCells('H11:H12'); setCell('H11','Distance in Kms',{bold:true,h:'center',v:'middle',wrap:true});
+    ws.mergeCells('I11:I12'); setCell('I11','Rate per KM ( as per Policy)',{bold:true,h:'center',v:'middle',wrap:true});
+    ws.mergeCells('J11:J12'); setCell('J11','Total',{bold:true,h:'center',v:'middle',wrap:true});
+    ws.mergeCells('K11:K12'); setCell('K11','Grand Total Amount (Rs.)',{bold:true,h:'center',v:'middle',wrap:true});
+    setCell('A12','DATE',{bold:true,h:'center',v:'middle'});
+    setCell('B12','START TIME',{bold:true,h:'center',v:'middle'});
+    setCell('C12','END TIME',{bold:true,h:'center',v:'middle'});
+    setCell('D12','FROM (Start Location)',{bold:true,h:'center',v:'middle'});
+    setCell('E12','TO (End Location)',{bold:true,h:'center',v:'middle'});
+    ws.getRow(11).height = 30;
+    ws.getRow(12).height = 48;
+
+    const COLS = 'ABCDEFGHIJK'.split('');
+    for(let row=1; row<=12; row++){
+      COLS.forEach(col=>{
+        const cell = ws.getCell(`${col}${row}`);
+        const top = (row===1||row===3||row===11) ? 'medium' : 'thin';
+        const bottom = (row===1||row===9||row===12) ? 'medium' : 'thin';
+        const left = col==='A' ? 'medium' : 'thin';
+        const right = col==='K' ? 'medium' : 'thin';
+        cell.border = borderBox(top,bottom,left,right);
+      });
+    }
+
+    let r = 13;
+    const totalFirstRow = r;
+    const entryAnchorRow = {};
+    list.forEach(entry=>{
+      const startRow = r;
+      entryAnchorRow[entry.id] = startRow;
+      entry.legs.forEach((leg,i)=>{
+        setCell(`A${r}`, i===0? excelDate(entry.date): null, {h:'center',v:'middle'});
+        setCell(`B${r}`, excelTime(leg.start), {h:'center',v:'middle'});
+        setCell(`C${r}`, excelTime(leg.end), {h:'center',v:'middle'});
+        setCell(`D${r}`, leg.from||'', {h:'center',v:'middle'});
+        setCell(`E${r}`, leg.to||'', {h:'center',v:'middle'});
+        setCell(`F${r}`, i===0? (entry.customerName||''): null, {h:'center',v:'middle'});
+        setCell(`G${r}`, leg.mode||'', {h:'center',v:'middle'});
+        setCell(`H${r}`, leg.distance? (leg.distance+' km'): null, {h:'center',v:'middle'});
+        setCell(`I${r}`, leg.rate || null, {h:'center',v:'middle'});
+        setCell(`J${r}`, leg.amount||0, {h:'center',v:'middle'});
+        COLS.forEach(col=>{
+          const cell = ws.getCell(`${col}${r}`);
+          const left = col==='A'?'medium':'thin';
+          const right = col==='K'?'medium':'thin';
+          cell.border = borderBox('thin','thin',left,right);
+        });
+        r++;
+      });
+      const endRow = r-1;
+      if(entry.legs.length>1){
+        ws.mergeCells(`A${startRow}:A${endRow}`);
+        ws.mergeCells(`F${startRow}:F${endRow}`);
+        ws.mergeCells(`K${startRow}:K${endRow}`);
+      }
+      const dayTotal = entry.legs.reduce((s,l)=>s+(parseFloat(l.amount)||0),0);
+      const kcell = ws.getCell(`K${startRow}`);
+      kcell.value = { formula:`SUM(J${startRow}:J${endRow})`, result: dayTotal };
+      kcell.font = { name:FONT, size:11 };
+      kcell.alignment = { horizontal:'center', vertical:'middle' };
+      r++; // blank separator row
+    });
+    const lastDataRow = r-1;
+    const totalRow = r;
+    const grandTotal = list.reduce((s,e)=> s + e.legs.reduce((s2,l)=>s2+(parseFloat(l.amount)||0),0), 0);
+    ws.mergeCells(`A${totalRow}:J${totalRow}`);
+    setCell(`A${totalRow}`, 'Total : ', {h:'right'});
+    const ktot = ws.getCell(`K${totalRow}`);
+    ktot.value = { formula:`SUM(K${totalFirstRow}:K${lastDataRow})`, result: grandTotal };
+    ktot.font = { name:FONT, size:11, bold:true };
+    ktot.alignment = { horizontal:'center' };
+    COLS.forEach(col=>{
+      const cell = ws.getCell(`${col}${totalRow}`);
+      const left = col==='A'?'medium':'thin';
+      const right = col==='K'?'medium':'thin';
+      cell.border = borderBox('thin','double',left,right);
+    });
+
+    const today = new Date();
+    const todayStr = String(today.getDate()).padStart(2,'0')+'/'+String(today.getMonth()+1).padStart(2,'0')+'/'+today.getFullYear();
+    const r2 = totalRow+1;
+    const sigRows = [
+      [`Claim by: ${profile.name||''}`, 'Approved By:', 'Verified By:'],
+      [`Date: ${todayStr}`, 'Date', 'Date'],
+      [`Signature: ${profile.name||''}`, 'Signature:', 'Signature:'],
+      ['Employee', 'Approving Authority:', 'Quality Head']
+    ];
+    sigRows.forEach(([a,d,f], offset)=>{
+      const rr = r2+offset;
+      ws.mergeCells(`A${rr}:B${rr}`);
+      setCell(`A${rr}`, a, {bold:true});
+      setCell(`D${rr}`, d, {bold:true});
+      setCell(`F${rr}`, f, {bold:true});
+      if(offset===1 || offset===2){ ws.mergeCells(`D${rr}:E${rr}`); }
+    });
+
+    /* ---------------- Sheet2: Evidence ---------------- */
+    const ws2 = wb.addWorksheet('Sheet2');
+    const headers2 = ['S.No','Date','Customer / Site','FROM (Start Location)','TO (End Location)',
+                       'Tag / Description','File Name','Photo','View Online','Back to claim'];
+    headers2.forEach((h,i)=>{
+      const c = ws2.getCell(1, i+1);
+      c.value = h;
+      c.font = { name:FONT, size:11, bold:true };
+      c.alignment = { horizontal:'center', vertical:'middle', wrapText:true };
+      c.border = borderBox('medium','medium','medium','medium');
+    });
+    const widths2 = [6,12,20,22,22,20,24,46,14,14];
+    widths2.forEach((w,i)=> ws2.getColumn(i+1).width = w);
+    ws2.getRow(1).height = 30;
+
+    const PHOTO_COL = 8;
+    const PHOTO_ROW_HEIGHT = 260;
+    const boxPxW = Math.round(widths2[PHOTO_COL-1]*7) - 6;
+    const boxPxH = Math.round(PHOTO_ROW_HEIGHT*1.333) - 6;
+
+    const evList = monthEvidence(list);
+    let row2 = 2;
+    for(const ev of evList){
+      const linked = list.find(e=>e.id===ev.entryId);
+      const fromLoc = linked && linked.legs.length ? linked.legs[0].from : '';
+      const toLoc = linked && linked.legs.length ? linked.legs[linked.legs.length-1].to : '';
+
+      ws2.getCell(row2,1).value = row2-1;
+      ws2.getCell(row2,2).value = linked? fmtDate(linked.date) : '';
+      ws2.getCell(row2,3).value = linked? (linked.customerName||'') : '';
+      ws2.getCell(row2,4).value = fromLoc;
+      ws2.getCell(row2,5).value = toLoc;
+      ws2.getCell(row2,6).value = ev.tag||'';
+      ws2.getCell(row2,7).value = ev.fileName||'';
+      ws2.getRow(row2).height = PHOTO_ROW_HEIGHT;
+      for(let col=1; col<=10; col++){
+        const c = ws2.getCell(row2,col);
+        c.font = { name:FONT, size:11 };
+        c.alignment = { horizontal:'center', vertical:'middle', wrapText:true };
+        c.border = borderBox('thin','thin','thin','thin');
+      }
+
+      if(ev.mimeType && ev.mimeType.startsWith('image/') && ev.url){
+        try{
+          const resp = await fetch(ev.url);
+          const blob = await resp.blob();
+          const arrayBuf = await blob.arrayBuffer();
+          const dims = await getImageDims(blob);
+          const scale = Math.min(boxPxW/dims.w, boxPxH/dims.h);
+          const ext = { width: Math.round(dims.w*scale), height: Math.round(dims.h*scale) };
+          const extType = ev.mimeType.includes('png') ? 'png' : (ev.mimeType.includes('gif') ? 'gif' : 'jpeg');
+          const imageId = wb.addImage({ buffer: arrayBuf, extension: extType });
+          ws2.addImage(imageId, { tl:{ col: PHOTO_COL-1, row: row2-1 }, ext });
+        }catch(e){
+          console.error('image embed failed', e);
+          ws2.getCell(row2,PHOTO_COL).value = '(preview unavailable)';
+        }
+      } else if(ev.fileName){
+        ws2.getCell(row2,PHOTO_COL).value = '(non-image file — use View Online)';
+      }
+
+      if(ev.url){
+        const vo = ws2.getCell(row2,9);
+        vo.value = { text:'View online ▸', hyperlink: ev.url };
+        vo.font = { name:FONT, size:11, color:{argb:'FF0563C1'}, underline:true };
+      }
+      if(linked && entryAnchorRow[linked.id]){
+        const anchor = entryAnchorRow[linked.id];
+        const cell = ws2.getCell(row2,10);
+        cell.value = { text:'View claim ▸', hyperlink:`#'Sheet1'!A${anchor}` };
+        cell.font = { name:FONT, size:11, color:{argb:'FF0563C1'}, underline:true };
+        const backCell = ws.getCell(`A${anchor}`);
+        const existingText = backCell.value;
+        backCell.value = { text: existingText, hyperlink:`#'Sheet2'!A${row2}` };
+        backCell.font = { name:FONT, size:12, color:{argb:'FF0563C1'}, underline:true };
+      }
+      row2++;
+    }
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const monthName = document.getElementById('monthSel').selectedOptions[0].text;
+    const year = document.getElementById('yearSel').value;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Conveyance_Claim_${monthName}_${year}.xlsx`;
+    a.click();
+    toast('Excel file downloaded');
+  }catch(err){
+    console.error(err);
+    toast('Export failed: ' + err.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Export to Excel';
+  }
+}
+
+/* ---------------- init ---------------- */
+async function boot(){
+  populateMonthYearSelectors();
+  try{
+    await loadProfile();
+    await loadEntries();
+    await loadEvidence();
+    setSync(true, 'Synced with Supabase');
+  }catch(e){
+    console.error(e);
+    setSync(false, 'Could not reach Supabase — check URL/key');
+  }
+  resetEntryForm();
+  renderMonth();
+  renderEvidenceGrid();
+  renderDashboard();
+}
+if(document.getElementById('appRoot').style.display === 'block'){ boot(); }
+</script>
+</body>
+</html>
