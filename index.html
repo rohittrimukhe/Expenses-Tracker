@@ -239,11 +239,12 @@
     <div class="card">
       <h2>Change password</h2>
       <div class="grid">
-        <div class="field"><label>New password</label><input type="password" id="pw_new"></div>
-        <div class="field"><label>Confirm new password</label><input type="password" id="pw_confirm"></div>
+        <div class="field"><label>Current password</label><input type="password" id="pw_current" autocomplete="current-password"></div>
+        <div class="field"><label>New password</label><input type="password" id="pw_new" autocomplete="new-password"></div>
+        <div class="field"><label>Confirm new password</label><input type="password" id="pw_confirm" autocomplete="new-password"></div>
       </div>
       <button class="btn" onclick="changePassword()">Update password</button>
-      <div class="note">This updates the password used to sign in to this tracker.</div>
+      <div class="note">This updates the password used to sign in to this tracker. You must enter your current password to confirm the change.</div>
     </div>
   </div>
 
@@ -351,15 +352,26 @@ async function loadProfile(){
 }
 
 async function changePassword(){
+  const current = document.getElementById('pw_current').value;
   const next = document.getElementById('pw_new').value;
   const confirm2 = document.getElementById('pw_confirm').value;
+  if(!current){ toast('Enter your current password'); return; }
   if(!next){ toast('Enter a new password'); return; }
   if(next !== confirm2){ toast("New password entries don't match"); return; }
   if(next.length < 6){ toast('Use at least 6 characters'); return; }
 
+  const { data: userData, error: userErr } = await sb.auth.getUser();
+  if(userErr || !userData || !userData.user || !userData.user.email){
+    toast('Could not verify current session — please refresh and try again');
+    return;
+  }
+  const { error: verifyErr } = await sb.auth.signInWithPassword({ email: userData.user.email, password: current });
+  if(verifyErr){ toast('Current password is incorrect'); return; }
+
   const { error } = await sb.auth.updateUser({ password: next });
   if(error){ toast('Could not update password: ' + error.message); return; }
 
+  document.getElementById('pw_current').value = '';
   document.getElementById('pw_new').value = '';
   document.getElementById('pw_confirm').value = '';
   toast('Password updated');
