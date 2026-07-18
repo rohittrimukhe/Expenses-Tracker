@@ -21,6 +21,7 @@ its own.
 | `supabase-setup.sql` | Full schema + security setup, for a fresh project |
 | `supabase-auth-upgrade.sql` | Already applied to the live project — kept for reference |
 | `supabase-hardening.sql` | **Run this once** — tightens the `anon` grant to table-privilege level and adds the `client_errors` table (see "Hardening applied" below) |
+| `supabase-custom-modes.sql` | **Run this once** — adds the `custom_modes` column backing Settings → Conveyance modes |
 | `.github/workflows/backup.yml`, `scripts/backup.sh` | Scheduled encrypted backup — see "Backups" below |
 
 ## Before this is safe to run in production
