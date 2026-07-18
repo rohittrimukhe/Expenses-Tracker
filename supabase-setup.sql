@@ -81,16 +81,21 @@ grant all on profile to authenticated;
 grant select, insert on client_errors to authenticated;
 
 -- ---------------- storage policies for the "evidence" bucket ----------------
--- Reading files works via direct public URL regardless of these policies,
--- because the bucket itself is marked "Public" (a separate setting — see
--- README). Uploading/deleting still requires a signed-in session.
+-- Fetching a file you already have the URL for works regardless of this
+-- policy, because the bucket itself is marked "Public" (a separate setting
+-- — see README) — that's the direct-object-download path. This SELECT
+-- policy instead governs *listing* the bucket's contents (Storage's list()
+-- API), which is a different operation and was previously open to anyone,
+-- letting an anonymous client enumerate every file's name and path. The app
+-- never calls list() itself (it tracks files via the "evidence" table
+-- instead), so this is scoped to signed-in sessions only.
 
 drop policy if exists "evidence read" on storage.objects;
 drop policy if exists "evidence insert" on storage.objects;
 drop policy if exists "evidence delete" on storage.objects;
 
 create policy "evidence read" on storage.objects
-  for select using (bucket_id = 'evidence');
+  for select using (bucket_id = 'evidence' and auth.uid() is not null);
 create policy "evidence insert" on storage.objects
   for insert with check (bucket_id = 'evidence' and auth.uid() is not null);
 create policy "evidence delete" on storage.objects
