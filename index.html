@@ -992,7 +992,16 @@ async function exportPolishedExcel(){
       kcell.value = { formula:`SUM(J${startRow}:J${endRow})`, result: dayTotal };
       kcell.font = { name:FONT, size:11 };
       kcell.alignment = { horizontal:'center', vertical:'middle' };
-      r++; // blank separator row
+
+      // Blank separator row — still needs the outer left/right edge so the
+      // table's single thick border stays unbroken all the way down.
+      COLS.forEach(col=>{
+        const cell = ws.getCell(`${col}${r}`);
+        const left = col==='A'?'medium':'thin';
+        const right = col==='K'?'medium':'thin';
+        cell.border = borderBox('thin','thin',left,right);
+      });
+      r++;
     });
     const lastDataRow = r-1;
     const totalRow = r;
