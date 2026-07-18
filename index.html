@@ -941,15 +941,18 @@ async function exportPolishedExcel(){
     ws.getRow(11).height = 30;
     ws.getRow(12).height = 48;
 
+    // Single thick border around the whole table (row 1 through the Total
+    // row): medium on the very top, very bottom, and both outer sides only —
+    // every internal row/column boundary stays thin, so individual rows
+    // aren't separately boxed.
     const COLS = 'ABCDEFGHIJK'.split('');
     for(let row=1; row<=12; row++){
       COLS.forEach(col=>{
         const cell = ws.getCell(`${col}${row}`);
-        const top = (row===1||row===3||row===11) ? 'medium' : 'thin';
-        const bottom = (row===1||row===9||row===12) ? 'medium' : 'thin';
+        const top = (row===1) ? 'medium' : 'thin';
         const left = col==='A' ? 'medium' : 'thin';
         const right = col==='K' ? 'medium' : 'thin';
-        cell.border = borderBox(top,bottom,left,right);
+        cell.border = borderBox(top,'thin',left,right);
       });
     }
 
@@ -1004,7 +1007,7 @@ async function exportPolishedExcel(){
       const cell = ws.getCell(`${col}${totalRow}`);
       const left = col==='A'?'medium':'thin';
       const right = col==='K'?'medium':'thin';
-      cell.border = borderBox('thin','double',left,right);
+      cell.border = borderBox('thin','medium',left,right);
     });
 
     const today = new Date();

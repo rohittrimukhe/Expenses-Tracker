@@ -18,21 +18,20 @@ its own.
 |---|---|
 | `index.html` | The application. Deploy this. |
 | `manifest.json`, `icon-192.png`, `icon-512.png` | Enable "Add to Home Screen" on mobile |
-| `supabase-setup.sql` | Full schema + security setup, for a fresh project |
-| `supabase-auth-upgrade.sql` | Already applied to the live project — kept for reference |
-| `supabase-hardening.sql` | **Run this once** — tightens the `anon` grant to table-privilege level and adds the `client_errors` table (see "Hardening applied" below) |
-| `supabase-custom-modes.sql` | **Run this once** — adds the `custom_modes` column backing Settings → Conveyance modes |
+| `supabase-setup.sql` | Full schema + security setup — the single file to run in the Supabase SQL Editor, safe to re-run |
+| `SETUP.md` | Full step-by-step guide for standing up a fresh copy of this app |
 | `.github/workflows/backup.yml`, `scripts/backup.sh` | Scheduled encrypted backup — see "Backups" below |
 
 ## Before this is safe to run in production
 
 This repo is currently **public**. The encrypted-backup setup below stores backup files inside this repo, which means anyone can download the ciphertext and attempt unlimited offline decryption attempts — there's no login rate-limiting like there is for the app itself. **Make the repo private first:** GitHub → this repo → Settings → General → Danger Zone → Change repository visibility → Private. GitHub Pages continues to work on private repos on the free plan. Do this before enabling the backup workflow below.
 
-## Hardening applied (run `supabase-hardening.sql` once)
+## Hardening applied (all in `supabase-setup.sql` + `index.html`)
 
-- **`index.html`:** all user-supplied text (customer name, from/to, tags, filenames, profile fields) is now HTML-escaped before being rendered, closing an XSS gap where a crafted value could have run arbitrary JS in an authenticated session. The Evidence Vault "Open" button no longer builds its click handler by interpolating a URL into a string (a JS-string-breakout risk) — it's wired up directly in JS instead.
-- **`index.html`:** the two CDN scripts (`supabase-js`, `exceljs`) are now pinned to exact versions with Subresource Integrity hashes, so a compromised or tampered CDN file would fail to load instead of silently executing. This does mean `supabase-js` no longer auto-updates on every page load — bump the version + hash in `index.html` deliberately when you want to upgrade it.
-- **`supabase-hardening.sql`:** revokes table access from the `anon` role (RLS already blocked it in practice; this removes the redundant grant as defense-in-depth) and adds a `client_errors` table so unexpected JS errors are now logged somewhere durable instead of only the browser console.
+- **`index.html`:** all user-supplied text (customer name, from/to, tags, filenames, profile fields) is HTML-escaped before being rendered, closing an XSS gap where a crafted value could have run arbitrary JS in an authenticated session. The Evidence Vault "Open" button no longer builds its click handler by interpolating a URL into a string (a JS-string-breakout risk) — it's wired up directly in JS instead.
+- **`index.html`:** the two CDN scripts (`supabase-js`, `exceljs`) are pinned to exact versions with Subresource Integrity hashes, so a compromised or tampered CDN file would fail to load instead of silently executing. This does mean `supabase-js` no longer auto-updates on every page load — bump the version + hash in `index.html` deliberately when you want to upgrade it.
+- **`index.html`:** you're auto-signed-out after 5 minutes of inactivity, and changing your password requires re-entering the current one first.
+- **`supabase-setup.sql`:** grants table access to the `authenticated` role only (RLS already blocked `anon` in practice; this removes the redundant grant as defense-in-depth) and creates a `client_errors` table so unexpected JS errors are logged somewhere durable instead of only the browser console.
 - **Not changed:** the evidence storage bucket stays public (by your call — it only holds receipts/travel evidence). Per-row data ownership (`user_id` column) wasn't added since there's exactly one login account today; add it before ever creating a second account, not after.
 
 ## Backups

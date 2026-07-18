@@ -13,23 +13,14 @@ Runs entirely in the browser; all data is stored in Supabase (Postgres + Storage
 | `manifest.json` | PWA manifest so the app can be installed to a phone home screen |
 | `icon-192.png`, `icon-512.png` | App icons used by the manifest |
 | `supabase-setup.sql` | One-time SQL to run in your Supabase project (tables, security policies, storage policies) |
+| `SETUP.md` | Full step-by-step setup guide for a fresh copy of this app |
+| `DEPLOYMENT.md` | Current configuration, security model, and maintenance notes |
 
 ## One-time setup
 
-1. **Create a free Supabase project** at supabase.com if you haven't already.
-2. **Run `supabase-setup.sql`**, then **`supabase-hardening.sql`**, then **`supabase-custom-modes.sql`**, in the Supabase SQL Editor (Supabase dashboard → SQL Editor → paste → Run, one file at a time).
-3. **Create a Storage bucket** named exactly `evidence`, marked **Public**
-   (Supabase dashboard → Storage → New bucket).
-4. **Edit the config block near the top of `<script>` in `index.html`:**
-   ```js
-   const SUPABASE_URL = 'https://YOUR-PROJECT-REF.supabase.co';
-   const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_...';
-   ```
-   Use your project's **publishable** key (Settings → API) — never the secret key.
-5. **Set your own passcode** — the app ships with a default passcode of
-   `changeme` (hashed, not stored in plain text). Open the app, unlock with
-   `changeme`, go to **Employee Details → Change passcode**, and set your own
-   immediately.
+See [SETUP.md](SETUP.md) for the full walkthrough — create a Supabase
+project, run `supabase-setup.sql`, create the evidence Storage bucket, create
+your login, point `index.html` at your project, and deploy it.
 
 ## Deploying so you can access it from anywhere
 
@@ -41,8 +32,8 @@ Pick whichever is easiest for you — all are free:
 - **Vercel**: connect this GitHub repo at vercel.com for automatic deploys on every push.
 
 The deployed URL is public (anyone with the link can open the page), but your
-data itself is gated by the in-app passcode and by Supabase's row-level
-security rules.
+data itself is gated by sign-in (real Supabase Auth — email + password) and
+by Supabase's row-level security rules.
 
 ## Using it day to day
 
@@ -60,10 +51,7 @@ security rules.
 
 - The publishable key is safe to expose in client code by design — real
   protection comes from Supabase's Row Level Security rules (already set up
-  by `supabase-setup.sql`).
-- The passcode is a basic gate, not a full authentication system — anyone who
-  knows it gets full read/write access. For stronger, per-person security,
-  Supabase Auth (real accounts) is the natural next upgrade.
-- Free-tier Supabase projects auto-pause after 7 days of no activity — resume
-  from the Supabase dashboard, or set up a free uptime monitor to ping it
-  periodically.
+  by `supabase-setup.sql`) and from real Supabase Auth sign-in.
+- You're auto-signed-out after 5 minutes of inactivity.
+- See `DEPLOYMENT.md` for the full security model, current hardening, and
+  backup setup.
