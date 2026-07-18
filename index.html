@@ -98,9 +98,11 @@
   <div class="lock-box">
     <div class="co" style="text-align:center;margin-bottom:2px">LRS Services Pvt. Ltd.</div>
     <h2>Conveyance Claim Tracker</h2>
-    <input type="email" id="authEmail" placeholder="Email" autocomplete="username" style="margin-bottom:10px">
-    <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password" style="margin-bottom:10px">
-    <button class="btn" style="width:100%" onclick="trySignIn()">Sign in</button>
+    <form id="lockForm" onsubmit="trySignIn(); return false;">
+      <input type="email" id="authEmail" placeholder="Email" autocomplete="username" style="margin-bottom:10px">
+      <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password" style="margin-bottom:10px">
+      <button class="btn" style="width:100%" type="submit">Sign in</button>
+    </form>
     <div class="note" id="lockNote">&nbsp;</div>
   </div>
 </div>
