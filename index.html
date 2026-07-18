@@ -308,6 +308,7 @@ async function trySignIn(){
 
 async function signOut(){
   if(!confirm('Sign out?')) return;
+  stopIdleWatch();
   await sb.auth.signOut();
   location.reload();
 }
@@ -321,6 +322,35 @@ async function checkExistingSession(){
   }
 }
 checkExistingSession();
+
+/* ---------------- auto sign-out after 5 minutes idle ---------------- */
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const IDLE_EVENTS = ['mousemove','mousedown','keydown','scroll','touchstart','click'];
+let idleTimer = null;
+
+function resetIdleTimer(){
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(autoSignOutIdle, IDLE_TIMEOUT_MS);
+}
+function startIdleWatch(){
+  IDLE_EVENTS.forEach(ev => document.addEventListener(ev, resetIdleTimer, {passive:true}));
+  resetIdleTimer();
+}
+function stopIdleWatch(){
+  clearTimeout(idleTimer);
+  IDLE_EVENTS.forEach(ev => document.removeEventListener(ev, resetIdleTimer));
+}
+async function autoSignOutIdle(){
+  stopIdleWatch();
+  await sb.auth.signOut();
+  sessionStorage.setItem('idleSignedOut','1');
+  location.reload();
+}
+if(sessionStorage.getItem('idleSignedOut')){
+  sessionStorage.removeItem('idleSignedOut');
+  const idleNote = document.getElementById('lockNote');
+  if(idleNote) idleNote.textContent = 'Signed out after 5 minutes of inactivity.';
+}
 
 /* ---------------- state ---------------- */
 let profile = {name:'Rohit Trimukhe', code:'LRS 813', grade:'', location:'Mumbai', project:'', address:'', customModes:[]};
@@ -1111,6 +1141,7 @@ async function boot(){
   renderMonth();
   renderEvidenceGrid();
   renderDashboard();
+  startIdleWatch();
 }
 if(document.getElementById('appRoot').style.display === 'block'){ boot(); }
 </script>
