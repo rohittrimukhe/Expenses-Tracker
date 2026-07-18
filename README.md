@@ -55,3 +55,8 @@ by Supabase's row-level security rules.
 - You're auto-signed-out after 5 minutes of inactivity.
 - See `DEPLOYMENT.md` for the full security model, current hardening, and
   backup setup.
+
+## License
+
+Personal, non-commercial use only — see [LICENSE](LICENSE). No selling,
+rebranding, or redistributing this as your own without permission.
