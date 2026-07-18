@@ -98,9 +98,11 @@
   <div class="lock-box">
     <div class="co" style="text-align:center;margin-bottom:2px">LRS Services Pvt. Ltd.</div>
     <h2>Conveyance Claim Tracker</h2>
-    <input type="email" id="authEmail" placeholder="Email" autocomplete="username" style="margin-bottom:10px">
-    <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password" style="margin-bottom:10px">
-    <button class="btn" style="width:100%" onclick="trySignIn()">Sign in</button>
+    <form id="lockForm" onsubmit="trySignIn(); return false;">
+      <input type="email" id="authEmail" placeholder="Email" autocomplete="username" style="margin-bottom:10px">
+      <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password" style="margin-bottom:10px">
+      <button class="btn" style="width:100%" type="submit">Sign in</button>
+    </form>
     <div class="note" id="lockNote">&nbsp;</div>
   </div>
 </div>
@@ -216,7 +218,7 @@
   <!-- EVIDENCE -->
   <div class="panel" id="panel-evidence">
     <div class="card">
-      <h2>Evidence Vault <span class="note" style="display:inline">(mirrors "Sheet2" of the exported tracker)</span></h2>
+      <h2>Evidence Vault <span class="note" style="display:inline">(mirrors the "Evidence" sheet of the exported tracker)</span></h2>
       <div class="ev-grid" id="evGrid"></div>
     </div>
   </div>
@@ -237,21 +239,32 @@
     </div>
 
     <div class="card">
+      <h2>Conveyance modes</h2>
+      <div class="note">Built-in: Auto, Taxi, Train, Bus, Two-wheeler, Own Car, Rapido, Ola, Uber, Other. Add more below — they show up in the "Mode" dropdown when logging a journey leg.</div>
+      <div class="chip-list" id="modeChips" style="margin-top:10px"></div>
+      <div style="display:flex;gap:8px;align-items:flex-end;margin-top:10px;flex-wrap:wrap">
+        <div class="field" style="max-width:220px;margin-bottom:0"><label>Add a mode</label><input type="text" id="newModeInput" placeholder="e.g. Metro"></div>
+        <button class="btn secondary small" onclick="addCustomMode()">+ Add mode</button>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Change password</h2>
       <div class="grid">
-        <div class="field"><label>New password</label><input type="password" id="pw_new"></div>
-        <div class="field"><label>Confirm new password</label><input type="password" id="pw_confirm"></div>
+        <div class="field"><label>Current password</label><input type="password" id="pw_current" autocomplete="current-password"></div>
+        <div class="field"><label>New password</label><input type="password" id="pw_new" autocomplete="new-password"></div>
+        <div class="field"><label>Confirm new password</label><input type="password" id="pw_confirm" autocomplete="new-password"></div>
       </div>
       <button class="btn" onclick="changePassword()">Update password</button>
-      <div class="note">This updates the password used to sign in to this tracker.</div>
+      <div class="note">This updates the password used to sign in to this tracker. You must enter your current password to confirm the change.</div>
     </div>
   </div>
 
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.7" integrity="sha384-BmlQlKlDvXvKoxkn5OQuUo/aJQCTXeB+Kls6EccBmG4Kf8AXvp89RtO9MtPxP/r5" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" integrity="sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz" crossorigin="anonymous"></script>
 <script>
 /* ============ CONFIG — edit these before deploying ============ */
 const SUPABASE_URL = 'https://vrooofaraqancenuzuzz.supabase.co';
@@ -260,6 +273,20 @@ const EVIDENCE_BUCKET = 'evidence';
 /* ================================================================ */
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+/* ---------------- best-effort client error logging (never blocks/throws) ---------------- */
+function logClientError(message, source){
+  try{
+    sb.from('client_errors').insert({
+      message: String(message||'').slice(0,2000),
+      source: source||'unknown',
+      url: location.href,
+      user_agent: navigator.userAgent
+    }).then(()=>{}, ()=>{});
+  }catch(e){ /* logging must never itself break the app */ }
+}
+window.addEventListener('error', (e)=> logClientError(e.message, 'window.onerror'));
+window.addEventListener('unhandledrejection', (e)=> logClientError(e.reason && e.reason.message || e.reason, 'unhandledrejection'));
 
 /* ---------------- sign-in (real Supabase Auth — enforced by the database, not just this page) ---------------- */
 async function trySignIn(){
@@ -281,6 +308,7 @@ async function trySignIn(){
 
 async function signOut(){
   if(!confirm('Sign out?')) return;
+  stopIdleWatch();
   await sb.auth.signOut();
   location.reload();
 }
@@ -295,15 +323,52 @@ async function checkExistingSession(){
 }
 checkExistingSession();
 
+/* ---------------- auto sign-out after 5 minutes idle ---------------- */
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const IDLE_EVENTS = ['mousemove','mousedown','keydown','scroll','touchstart','click'];
+let idleTimer = null;
+
+function resetIdleTimer(){
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(autoSignOutIdle, IDLE_TIMEOUT_MS);
+}
+function startIdleWatch(){
+  IDLE_EVENTS.forEach(ev => document.addEventListener(ev, resetIdleTimer, {passive:true}));
+  resetIdleTimer();
+}
+function stopIdleWatch(){
+  clearTimeout(idleTimer);
+  IDLE_EVENTS.forEach(ev => document.removeEventListener(ev, resetIdleTimer));
+}
+async function autoSignOutIdle(){
+  stopIdleWatch();
+  await sb.auth.signOut();
+  sessionStorage.setItem('idleSignedOut','1');
+  location.reload();
+}
+if(sessionStorage.getItem('idleSignedOut')){
+  sessionStorage.removeItem('idleSignedOut');
+  const idleNote = document.getElementById('lockNote');
+  if(idleNote) idleNote.textContent = 'Signed out after 5 minutes of inactivity.';
+}
+
 /* ---------------- state ---------------- */
-let profile = {name:'Rohit Trimukhe', code:'LRS 813', grade:'', location:'Mumbai', project:'', address:''};
+let profile = {name:'Rohit Trimukhe', code:'LRS 813', grade:'', location:'Mumbai', project:'', address:'', customModes:[]};
 let entries = [];
 let evidence = [];
 let currentLegs = [];
 let pendingFiles = [];
 let editingId = null;
 
-const MODES = ['Auto','Taxi','Train','Bus','Two-wheeler','Own Car','Other'];
+const BASE_MODES = ['Auto','Taxi','Train','Bus','Two-wheeler','Own Car','Rapido','Ola','Uber','Other'];
+function allModes(){
+  const base = BASE_MODES.filter(m=>m!=='Other');
+  const custom = (profile.customModes||[]).filter(Boolean);
+  return [...base, ...custom, 'Other'];
+}
+function profileRow(){
+  return { id:1, name:profile.name||'', code:profile.code||'', grade:profile.grade||'', location:profile.location||'', project:profile.project||'', address:profile.address||'', custom_modes: profile.customModes||[] };
+}
 
 function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 function toast(msg){
@@ -312,6 +377,9 @@ function toast(msg){
   clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 2800);
 }
 function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('en-IN'); }
+function escapeHtml(s){
+  return String(s==null? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 function setSync(ok, text){
   document.getElementById('syncDot').className = 'sync-dot ' + (ok?'ok':'bad');
   document.getElementById('syncText').textContent = text;
@@ -322,7 +390,7 @@ async function loadProfile(){
   const { data, error } = await sb.from('profile').select('*').eq('id',1).maybeSingle();
   if(error){ setSync(false,'Profile load failed'); console.error(error); return; }
   if(data){
-    profile = { name:data.name||'', code:data.code||'', grade:data.grade||'', location:data.location||'', project:data.project||'', address:data.address||'' };
+    profile = { name:data.name||'', code:data.code||'', grade:data.grade||'', location:data.location||'', project:data.project||'', address:data.address||'', customModes:data.custom_modes||[] };
   }
   document.getElementById('p_name').value = profile.name||'';
   document.getElementById('p_code').value = profile.code||'';
@@ -330,19 +398,31 @@ async function loadProfile(){
   document.getElementById('p_location').value = profile.location||'';
   document.getElementById('p_project').value = profile.project||'';
   document.getElementById('p_address').value = profile.address||'';
-  document.getElementById('whoBox').innerHTML = `<strong>${profile.name||''}</strong> · ${profile.code||''}${profile.location? ' · '+profile.location:''}`;
+  document.getElementById('whoBox').innerHTML = `<strong>${escapeHtml(profile.name)}</strong> · ${escapeHtml(profile.code)}${profile.location? ' · '+escapeHtml(profile.location):''}`;
+  renderModeChips();
 }
 
 async function changePassword(){
+  const current = document.getElementById('pw_current').value;
   const next = document.getElementById('pw_new').value;
   const confirm2 = document.getElementById('pw_confirm').value;
+  if(!current){ toast('Enter your current password'); return; }
   if(!next){ toast('Enter a new password'); return; }
   if(next !== confirm2){ toast("New password entries don't match"); return; }
   if(next.length < 6){ toast('Use at least 6 characters'); return; }
 
+  const { data: userData, error: userErr } = await sb.auth.getUser();
+  if(userErr || !userData || !userData.user || !userData.user.email){
+    toast('Could not verify current session — please refresh and try again');
+    return;
+  }
+  const { error: verifyErr } = await sb.auth.signInWithPassword({ email: userData.user.email, password: current });
+  if(verifyErr){ toast('Current password is incorrect'); return; }
+
   const { error } = await sb.auth.updateUser({ password: next });
   if(error){ toast('Could not update password: ' + error.message); return; }
 
+  document.getElementById('pw_current').value = '';
   document.getElementById('pw_new').value = '';
   document.getElementById('pw_confirm').value = '';
   toast('Password updated');
@@ -355,12 +435,51 @@ async function saveProfile(){
     grade: document.getElementById('p_grade').value.trim(),
     location: document.getElementById('p_location').value.trim(),
     project: document.getElementById('p_project').value.trim(),
-    address: document.getElementById('p_address').value.trim()
+    address: document.getElementById('p_address').value.trim(),
+    customModes: profile.customModes || []
   };
-  const { error } = await sb.from('profile').upsert({ id:1, ...profile });
+  const { error } = await sb.from('profile').upsert(profileRow());
   if(error){ toast('Could not save — ' + error.message); return; }
-  document.getElementById('whoBox').innerHTML = `<strong>${profile.name}</strong> · ${profile.code}${profile.location? ' · '+profile.location:''}`;
+  document.getElementById('whoBox').innerHTML = `<strong>${escapeHtml(profile.name)}</strong> · ${escapeHtml(profile.code)}${profile.location? ' · '+escapeHtml(profile.location):''}`;
   toast('Employee details saved');
+}
+
+/* ---------------- custom conveyance modes ---------------- */
+function renderModeChips(){
+  const wrap = document.getElementById('modeChips');
+  const custom = profile.customModes || [];
+  if(custom.length===0){ wrap.innerHTML = '<div class="note">No custom modes added yet.</div>'; return; }
+  wrap.innerHTML = custom.map((m,i)=>`
+    <div class="chip">
+      <span>${escapeHtml(m)}</span>
+      <span class="x" onclick="removeCustomMode(${i})">✕</span>
+    </div>`).join('');
+}
+async function addCustomMode(){
+  const input = document.getElementById('newModeInput');
+  const val = input.value.trim();
+  if(!val){ toast('Enter a mode name'); return; }
+  const custom = profile.customModes || [];
+  const exists = BASE_MODES.some(m=>m.toLowerCase()===val.toLowerCase()) || custom.some(m=>m.toLowerCase()===val.toLowerCase());
+  if(exists){ toast('That mode already exists'); return; }
+  profile.customModes = [...custom, val];
+  const { error } = await sb.from('profile').upsert(profileRow());
+  if(error){ toast('Could not save — ' + error.message); profile.customModes = custom; return; }
+  input.value = '';
+  renderModeChips();
+  toast('Mode added');
+}
+async function removeCustomMode(i){
+  const custom = profile.customModes || [];
+  const removed = custom[i];
+  if(!removed) return;
+  if(!confirm(`Remove "${removed}" from the mode list?`)) return;
+  const next = custom.filter((_,idx)=>idx!==i);
+  profile.customModes = next;
+  const { error } = await sb.from('profile').upsert(profileRow());
+  if(error){ toast('Could not save — ' + error.message); profile.customModes = custom; return; }
+  renderModeChips();
+  toast('Mode removed');
 }
 
 async function loadEntries(){
@@ -403,14 +522,14 @@ function renderLegs(){
   const body = document.getElementById('legsBody');
   body.innerHTML = currentLegs.map((l,i)=>`
     <tr>
-      <td><input type="time" value="${l.start}" onchange="updateLeg(${i},'start',this.value)"></td>
-      <td><input type="time" value="${l.end}" onchange="updateLeg(${i},'end',this.value)"></td>
-      <td><input type="text" value="${l.from}" placeholder="Start location" onchange="updateLeg(${i},'from',this.value)"></td>
-      <td><input type="text" value="${l.to}" placeholder="End location" onchange="updateLeg(${i},'to',this.value)"></td>
-      <td><select onchange="updateLeg(${i},'mode',this.value)">${MODES.map(m=>`<option ${m===l.mode?'selected':''}>${m}</option>`).join('')}</select></td>
-      <td><input type="number" step="0.1" value="${l.distance}" onchange="updateLeg(${i},'distance',this.value)"></td>
-      <td><input type="number" step="0.1" value="${l.rate}" onchange="updateLeg(${i},'rate',this.value)"></td>
-      <td><input type="number" step="1" value="${l.amount}" onchange="updateLeg(${i},'amount',this.value)"></td>
+      <td><input type="time" value="${escapeHtml(l.start)}" onchange="updateLeg(${i},'start',this.value)"></td>
+      <td><input type="time" value="${escapeHtml(l.end)}" onchange="updateLeg(${i},'end',this.value)"></td>
+      <td><input type="text" value="${escapeHtml(l.from)}" placeholder="Start location" onchange="updateLeg(${i},'from',this.value)"></td>
+      <td><input type="text" value="${escapeHtml(l.to)}" placeholder="End location" onchange="updateLeg(${i},'to',this.value)"></td>
+      <td><select onchange="updateLeg(${i},'mode',this.value)">${allModes().map(m=>`<option ${m===l.mode?'selected':''}>${escapeHtml(m)}</option>`).join('')}</select></td>
+      <td><input type="number" step="0.1" value="${escapeHtml(l.distance)}" onchange="updateLeg(${i},'distance',this.value)"></td>
+      <td><input type="number" step="0.1" value="${escapeHtml(l.rate)}" onchange="updateLeg(${i},'rate',this.value)"></td>
+      <td><input type="number" step="1" value="${escapeHtml(l.amount)}" onchange="updateLeg(${i},'amount',this.value)"></td>
       <td><span class="x" style="cursor:pointer;color:#c0392b;font-weight:bold" onclick="removeLeg(${i})">✕</span></td>
     </tr>`).join('');
   updateDayTotal();
@@ -478,7 +597,7 @@ function renderPendingChips(){
   wrap.innerHTML = pendingFiles.map((f,i)=>`
     <div class="chip">
       ${f.mimeType.startsWith('image/') ? `<img src="${f.previewUrl}">` : '📄'}
-      <span>${f.fileName}</span>
+      <span>${escapeHtml(f.fileName)}</span>
       <span class="x" onclick="removePendingFile(${i})">✕</span>
     </div>`).join('');
 }
@@ -609,9 +728,9 @@ function renderMonth(){
       rows += `<tr>
         <td>${i===0? fmtDate(e.date):''}</td>
         <td>${fmtTime(l.start)}</td><td>${fmtTime(l.end)}</td>
-        <td>${l.from||''}</td><td>${l.to||''}</td>
-        <td>${i===0? (e.customerName||''):''}</td>
-        <td>${l.mode||''}</td>
+        <td>${escapeHtml(l.from)}</td><td>${escapeHtml(l.to)}</td>
+        <td>${i===0? escapeHtml(e.customerName):''}</td>
+        <td>${escapeHtml(l.mode)}</td>
         <td class="num">${l.distance? l.distance+' km':''}</td>
         <td class="num">${l.rate||''}</td>
         <td class="num">${money(l.amount)}</td>
@@ -636,7 +755,7 @@ function renderMonth(){
     const dayTotal = e.legs.reduce((s,l)=>s+(parseFloat(l.amount)||0),0);
     const evCount = evidence.filter(ev=>ev.entryId===e.id).length;
     return `<div class="entry-row">
-      <div><strong>${fmtDate(e.date)}</strong> — ${e.customerName||'—'} <span class="meta">(${e.legs.length} leg${e.legs.length>1?'s':''})</span></div>
+      <div><strong>${fmtDate(e.date)}</strong> — ${e.customerName? escapeHtml(e.customerName):'—'} <span class="meta">(${e.legs.length} leg${e.legs.length>1?'s':''})</span></div>
       <div style="display:flex;align-items:center;gap:10px">
         <span class="badge">₹${money(dayTotal)}</span>
         ${evCount? `<span class="badge">${evCount} file${evCount>1?'s':''}</span>`:''}
@@ -715,17 +834,22 @@ function renderEvidenceGrid(){
   if(evidence.length===0){ grid.innerHTML = '<div class="empty">No evidence uploaded yet.</div>'; return; }
   grid.innerHTML = evidence.map(ev=>{
     const linked = entries.find(e=>e.id===ev.entryId);
-    return `<div class="ev-card">
-      ${ev.mimeType.startsWith('image/') ? `<img src="${ev.url}">` : `<div style="height:110px;display:flex;align-items:center;justify-content:center;font-size:32px;background:#f0f2f5;border-radius:5px;">📄</div>`}
-      <div class="fname">${ev.fileName}</div>
-      <div class="meta">${linked? fmtDate(linked.date)+' · '+(linked.customerName||''): 'Unlinked'}</div>
-      <div class="tag-pill">${ev.tag}</div>
+    return `<div class="ev-card" data-ev-id="${escapeHtml(ev.id)}">
+      ${ev.mimeType.startsWith('image/') ? `<img src="${escapeHtml(ev.url)}">` : `<div style="height:110px;display:flex;align-items:center;justify-content:center;font-size:32px;background:#f0f2f5;border-radius:5px;">📄</div>`}
+      <div class="fname">${escapeHtml(ev.fileName)}</div>
+      <div class="meta">${linked? fmtDate(linked.date)+' · '+escapeHtml(linked.customerName): 'Unlinked'}</div>
+      <div class="tag-pill">${escapeHtml(ev.tag)}</div>
       <div class="ev-actions">
-        <button class="btn secondary small" onclick="window.open('${ev.url}','_blank')">Open</button>
+        <button class="btn secondary small" data-action="open">Open</button>
         <button class="btn danger small" onclick="deleteEvidence('${ev.id}')">Delete</button>
       </div>
     </div>`;
   }).join('');
+  grid.querySelectorAll('[data-action="open"]').forEach(btn=>{
+    const card = btn.closest('.ev-card');
+    const ev = evidence.find(e=>e.id===card.dataset.evId);
+    if(ev) btn.onclick = ()=> window.open(ev.url, '_blank');
+  });
 }
 async function deleteEvidence(id){
   if(!confirm('Delete this file?')) return;
@@ -765,7 +889,7 @@ async function exportPolishedExcel(){
     const wb = new ExcelJS.Workbook();
     wb.creator = profile.name || 'LRS Services Pvt. Ltd.';
     wb.calcProperties.fullCalcOnLoad = true;
-    const ws = wb.addWorksheet('Sheet1');
+    const ws = wb.addWorksheet('Claim Details');
 
     const widths = [16.5,13,13,30,30,28,15,15,15,15,15];
     widths.forEach((w,i)=> ws.getColumn(i+1).width = w);
@@ -901,8 +1025,8 @@ async function exportPolishedExcel(){
       if(offset===1 || offset===2){ ws.mergeCells(`D${rr}:E${rr}`); }
     });
 
-    /* ---------------- Sheet2: Evidence ---------------- */
-    const ws2 = wb.addWorksheet('Sheet2');
+    /* ---------------- Evidence sheet ---------------- */
+    const ws2 = wb.addWorksheet('Evidence');
     const headers2 = ['S.No','Date','Customer / Site','FROM (Start Location)','TO (End Location)',
                        'Tag / Description','File Name','Photo','View Online','Back to claim'];
     headers2.forEach((h,i)=>{
@@ -922,6 +1046,7 @@ async function exportPolishedExcel(){
     const boxPxH = Math.round(PHOTO_ROW_HEIGHT*1.333) - 6;
 
     const evList = monthEvidence(list);
+    const backLinked = new Set();
     let row2 = 2;
     for(const ev of evList){
       const linked = list.find(e=>e.id===ev.entryId);
@@ -970,12 +1095,15 @@ async function exportPolishedExcel(){
       if(linked && entryAnchorRow[linked.id]){
         const anchor = entryAnchorRow[linked.id];
         const cell = ws2.getCell(row2,10);
-        cell.value = { text:'View claim ▸', hyperlink:`#'Sheet1'!A${anchor}` };
+        cell.value = { text:'View claim ▸', hyperlink:`#'Claim Details'!A${anchor}` };
         cell.font = { name:FONT, size:11, color:{argb:'FF0563C1'}, underline:true };
-        const backCell = ws.getCell(`A${anchor}`);
-        const existingText = backCell.value;
-        backCell.value = { text: existingText, hyperlink:`#'Sheet2'!A${row2}` };
-        backCell.font = { name:FONT, size:12, color:{argb:'FF0563C1'}, underline:true };
+        if(!backLinked.has(linked.id)){
+          const backCell = ws.getCell(`A${anchor}`);
+          const existingText = backCell.value;
+          backCell.value = { text: existingText, hyperlink:`#'Evidence'!A${row2}` };
+          backCell.font = { name:FONT, size:12, color:{argb:'FF0563C1'}, underline:true };
+          backLinked.add(linked.id);
+        }
       }
       row2++;
     }
@@ -1013,6 +1141,7 @@ async function boot(){
   renderMonth();
   renderEvidenceGrid();
   renderDashboard();
+  startIdleWatch();
 }
 if(document.getElementById('appRoot').style.display === 'block'){ boot(); }
 </script>
