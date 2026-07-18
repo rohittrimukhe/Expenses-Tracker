@@ -958,6 +958,7 @@ async function exportPolishedExcel(){
     const boxPxH = Math.round(PHOTO_ROW_HEIGHT*1.333) - 6;
 
     const evList = monthEvidence(list);
+    const backLinked = new Set();
     let row2 = 2;
     for(const ev of evList){
       const linked = list.find(e=>e.id===ev.entryId);
@@ -1008,10 +1009,13 @@ async function exportPolishedExcel(){
         const cell = ws2.getCell(row2,10);
         cell.value = { text:'View claim ▸', hyperlink:`#'Sheet1'!A${anchor}` };
         cell.font = { name:FONT, size:11, color:{argb:'FF0563C1'}, underline:true };
-        const backCell = ws.getCell(`A${anchor}`);
-        const existingText = backCell.value;
-        backCell.value = { text: existingText, hyperlink:`#'Sheet2'!A${row2}` };
-        backCell.font = { name:FONT, size:12, color:{argb:'FF0563C1'}, underline:true };
+        if(!backLinked.has(linked.id)){
+          const backCell = ws.getCell(`A${anchor}`);
+          const existingText = backCell.value;
+          backCell.value = { text: existingText, hyperlink:`#'Sheet2'!A${row2}` };
+          backCell.font = { name:FONT, size:12, color:{argb:'FF0563C1'}, underline:true };
+          backLinked.add(linked.id);
+        }
       }
       row2++;
     }
