@@ -20,6 +20,41 @@ its own.
 | `manifest.json`, `icon-192.png`, `icon-512.png` | Enable "Add to Home Screen" on mobile |
 | `supabase-setup.sql` | Full schema + security setup, for a fresh project |
 | `supabase-auth-upgrade.sql` | Already applied to the live project — kept for reference |
+| `supabase-hardening.sql` | **Run this once** — tightens the `anon` grant to table-privilege level and adds the `client_errors` table (see "Hardening applied" below) |
+| `.github/workflows/backup.yml`, `scripts/backup.sh` | Scheduled encrypted backup — see "Backups" below |
+
+## Before this is safe to run in production
+
+This repo is currently **public**. The encrypted-backup setup below stores backup files inside this repo, which means anyone can download the ciphertext and attempt unlimited offline decryption attempts — there's no login rate-limiting like there is for the app itself. **Make the repo private first:** GitHub → this repo → Settings → General → Danger Zone → Change repository visibility → Private. GitHub Pages continues to work on private repos on the free plan. Do this before enabling the backup workflow below.
+
+## Hardening applied (run `supabase-hardening.sql` once)
+
+- **`index.html`:** all user-supplied text (customer name, from/to, tags, filenames, profile fields) is now HTML-escaped before being rendered, closing an XSS gap where a crafted value could have run arbitrary JS in an authenticated session. The Evidence Vault "Open" button no longer builds its click handler by interpolating a URL into a string (a JS-string-breakout risk) — it's wired up directly in JS instead.
+- **`index.html`:** the two CDN scripts (`supabase-js`, `exceljs`) are now pinned to exact versions with Subresource Integrity hashes, so a compromised or tampered CDN file would fail to load instead of silently executing. This does mean `supabase-js` no longer auto-updates on every page load — bump the version + hash in `index.html` deliberately when you want to upgrade it.
+- **`supabase-hardening.sql`:** revokes table access from the `anon` role (RLS already blocked it in practice; this removes the redundant grant as defense-in-depth) and adds a `client_errors` table so unexpected JS errors are now logged somewhere durable instead of only the browser console.
+- **Not changed:** the evidence storage bucket stays public (by your call — it only holds receipts/travel evidence). Per-row data ownership (`user_id` column) wasn't added since there's exactly one login account today; add it before ever creating a second account, not after.
+
+## Backups
+
+A GitHub Actions workflow (`.github/workflows/backup.yml`) runs twice a week (Mon/Thu 03:17 UTC, plus on-demand via the Actions tab → "Encrypted backup" → Run workflow). It pulls `entries`, `evidence`, and `profile` as JSON, downloads every evidence file from Storage, bundles it all into a `.tar.gz`, encrypts it with AES-256 (PBKDF2, 300,000 iterations), and commits the encrypted file to `backups/` in this repo. It keeps the last 12 backups and prunes older ones automatically. As a side effect, this also keeps the Supabase project from auto-pausing, since it queries the database directly every few days.
+
+**One-time setup — two repository secrets, added by you in GitHub, never committed to any file:**
+
+GitHub → this repo → Settings → Secrets and variables → Actions → New repository secret:
+
+1. `SUPABASE_SERVICE_ROLE_KEY` — from Supabase Dashboard → Settings → API → `service_role` key (**not** the publishable key). This bypasses RLS so the scheduled job can read all tables without a login session — treat it as highly sensitive; it only ever lives inside this GitHub secret, never in a file.
+2. `BACKUP_PASSPHRASE` — your backup encryption passphrase. Also never written to any file in this repo — the workflow reads it only from this secret at run time.
+
+**Restoring a backup:**
+
+```
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 300000 -salt \
+  -in backups/backup-2026-07-18.tar.gz.enc -out backup.tar.gz \
+  -pass pass:'your-passphrase-here'
+tar -xzf backup.tar.gz
+```
+
+This extracts a `data/` folder (`entries.json`, `evidence.json`, `profile.json`) and a `files/` folder mirroring the evidence bucket's storage paths.
 
 ## Access model
 
@@ -46,21 +81,27 @@ its own.
 - **After reimbursement**: use Dashboard → month row → "Delete month" to clear
   that month's data and free up space.
 - **If the site goes idle for 7+ days**: the free database tier pauses
-  automatically. Resume it from the Supabase dashboard, or set up a free
-  uptime monitor (e.g. UptimeRobot) pinging the project periodically to avoid
-  this.
-- **No automated backups exist on the free tier.** There isn't a scheduled
-  backup job configured. If this data becomes important enough to protect
-  against accidental loss, that's worth setting up before it's needed, not
-  after.
+  automatically. The twice-weekly backup workflow (see "Backups" above)
+  already prevents this as a side effect. If you also want alerting when the
+  *site itself* is down (a different concern from DB idling), point an uptime
+  monitor at the app's GitHub Pages URL — that's a separate, unrelated check
+  and doesn't need any Supabase credentials.
+- **Automated backups now exist** — see "Backups" above. They cover
+  `entries`/`evidence`/`profile` plus every evidence file, twice weekly,
+  encrypted, retained for the last 12 runs.
 
 ## Possible future upgrades (not currently implemented)
 
 - Two-factor authentication (TOTP) on the login account
 - Fully private evidence files via signed, expiring URLs instead of a public
-  bucket
-- Automated database backups
-- Multiple user accounts with individual permissions
+  bucket (currently public by deliberate choice — receipts only, no other PII)
+- Multiple user accounts with individual permissions — needs a `user_id`
+  ownership column + updated RLS policies added *before* a second account is
+  created, not after
+- More visible handling of partial-failure saves (an entry can save
+  successfully while one of its evidence uploads fails, with only a toast
+  notification) — not changed in this pass since it alters the save flow's
+  error-handling behavior
 
 None of these are required for current use — they're listed here so future
 decisions about them are informed choices, not oversights.

@@ -17,7 +17,7 @@ Runs entirely in the browser; all data is stored in Supabase (Postgres + Storage
 ## One-time setup
 
 1. **Create a free Supabase project** at supabase.com if you haven't already.
-2. **Run `supabase-setup.sql`** in the Supabase SQL Editor (Supabase dashboard → SQL Editor → paste → Run).
+2. **Run `supabase-setup.sql`**, then **`supabase-hardening.sql`**, in the Supabase SQL Editor (Supabase dashboard → SQL Editor → paste → Run, one file at a time).
 3. **Create a Storage bucket** named exactly `evidence`, marked **Public**
    (Supabase dashboard → Storage → New bucket).
 4. **Edit the config block near the top of `<script>` in `index.html`:**
