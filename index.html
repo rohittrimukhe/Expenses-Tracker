@@ -972,12 +972,20 @@ async function exportPolishedExcel(){
       ws.getCell(`E${row}`).border = borderBox('thin','thin','thin','medium');
     });
 
-    ws.getCell('A10').border = borderBox('medium','medium','medium','medium');
-    ['A11','D11','F11','G11','H11','I11','J11','K11','L11'].forEach(coord=>{
-      ws.getCell(coord).border = borderBox('medium','medium','medium','medium');
+    // Rows 10-12 as one section: thick border around the OUTSIDE only (top
+    // of row10, bottom of row12, both outer sides) — every internal
+    // boundary (row10/11, row11/12, between each header cell) stays thin,
+    // same as the rest of the sheet.
+    ws.getCell('A10').border = borderBox('medium','thin','medium','medium');
+    ws.getCell('A11').border = borderBox('thin','thin','medium','thin');
+    ws.getCell('D11').border = borderBox('thin','thin','thin','thin');
+    ['F11','G11','H11','I11','J11','K11'].forEach(coord=>{
+      ws.getCell(coord).border = borderBox('thin','medium','thin','thin');
     });
-    ['A12','B12','C12','D12','E12'].forEach(coord=>{
-      ws.getCell(coord).border = borderBox('medium','medium','medium','medium');
+    ws.getCell('L11').border = borderBox('thin','medium','thin','medium');
+    ws.getCell('A12').border = borderBox('thin','medium','medium','thin');
+    ['B12','C12','D12','E12'].forEach(coord=>{
+      ws.getCell(coord).border = borderBox('thin','medium','thin','thin');
     });
 
     let r = 13;

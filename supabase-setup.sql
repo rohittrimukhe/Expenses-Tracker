@@ -43,6 +43,29 @@ create table if not exists client_errors (
   created_at timestamptz default now()
 );
 
+-- Customer/route directory backing the New Entry autocomplete (Settings ->
+-- Conveyance modes-style manager). Deliberately separate from "entries" —
+-- deleting a month's entries never touches this table, and vice versa.
+create table if not exists customers (
+  id text primary key,
+  name text not null,
+  so_number text,
+  created_at timestamptz default now()
+);
+create unique index if not exists customers_name_lower_idx on customers (lower(name));
+
+create table if not exists customer_routes (
+  id text primary key,
+  customer_id text references customers(id) on delete cascade,
+  from_location text,
+  to_location text,
+  mode text,
+  distance text,
+  rate text,
+  amount text,
+  created_at timestamptz default now()
+);
+
 -- ---------------- row level security ----------------
 -- auth.uid() is only non-null for a signed-in session, and Postgres checks
 -- this on every request — it can't be bypassed by calling the API directly
@@ -52,12 +75,16 @@ alter table entries enable row level security;
 alter table evidence enable row level security;
 alter table profile enable row level security;
 alter table client_errors enable row level security;
+alter table customers enable row level security;
+alter table customer_routes enable row level security;
 
 drop policy if exists "auth only - entries" on entries;
 drop policy if exists "auth only - evidence" on evidence;
 drop policy if exists "auth only - profile" on profile;
 drop policy if exists "auth only insert - client_errors" on client_errors;
 drop policy if exists "auth only select - client_errors" on client_errors;
+drop policy if exists "auth only - customers" on customers;
+drop policy if exists "auth only - customer_routes" on customer_routes;
 
 create policy "auth only - entries" on entries
   for all using (auth.uid() is not null) with check (auth.uid() is not null);
@@ -69,6 +96,10 @@ create policy "auth only insert - client_errors" on client_errors
   for insert with check (auth.uid() is not null);
 create policy "auth only select - client_errors" on client_errors
   for select using (auth.uid() is not null);
+create policy "auth only - customers" on customers
+  for all using (auth.uid() is not null) with check (auth.uid() is not null);
+create policy "auth only - customer_routes" on customer_routes
+  for all using (auth.uid() is not null) with check (auth.uid() is not null);
 
 -- Table grants: "authenticated" only. RLS above already blocks "anon" from
 -- reading/writing any row, so this doesn't change what's reachable today —
@@ -81,6 +112,8 @@ grant all on entries to authenticated;
 grant all on evidence to authenticated;
 grant all on profile to authenticated;
 grant select, insert on client_errors to authenticated;
+grant all on customers to authenticated;
+grant all on customer_routes to authenticated;
 
 -- ---------------- storage policies for the "evidence" bucket ----------------
 -- Fetching a file you already have the URL for works regardless of this
