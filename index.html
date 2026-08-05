@@ -51,6 +51,13 @@
   .evidence-drop{border:2px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);font-size:12px;cursor:pointer;}
   .evidence-drop:hover{border-color:var(--blue);color:var(--blue);}
   .chip-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .suggest-box{position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(20,30,50,.12);z-index:20;max-height:220px;overflow-y:auto;display:none;margin-top:2px;}
+  .suggest-box.show{display:block;}
+  .suggest-item{padding:8px 10px;cursor:pointer;font-size:12.5px;border-bottom:1px solid var(--line);}
+  .suggest-item:last-child{border-bottom:none;}
+  .suggest-item:hover,.suggest-item.active{background:var(--blue-light);}
+  .suggest-item .main{font-weight:bold;color:var(--ink);}
+  .suggest-item .sub{color:var(--muted);font-size:11px;margin-top:1px;}
   .chip{display:flex;align-items:center;gap:6px;background:var(--blue-light);border:1px solid #c7dafc;border-radius:6px;padding:5px 8px;font-size:12px;}
   .chip img{width:26px;height:26px;object-fit:cover;border-radius:3px;}
   .chip .x{cursor:pointer;color:var(--bad);font-weight:bold;padding:0 3px;}
@@ -152,8 +159,16 @@
       <h2 id="entryFormTitle">Add a day's travel</h2>
       <div class="grid">
         <div class="field"><label>Date</label><input type="date" id="f_date"></div>
-        <div class="field"><label>Customer / Site Name</label><input type="text" id="f_customer" placeholder="e.g. VVF India"></div>
-        <div class="field"><label>SO Number</label><input type="text" id="f_so_number" placeholder="e.g. SO-12345"></div>
+        <div class="field" style="position:relative">
+          <label>Customer / Site Name</label>
+          <input type="text" id="f_customer" placeholder="e.g. VVF India" autocomplete="off" oninput="onCustomerInput()" onfocus="onCustomerInput()" onblur="setTimeout(hideCustomerSuggest,150)">
+          <div id="customerSuggest" class="suggest-box"></div>
+        </div>
+        <div class="field" style="position:relative">
+          <label>SO Number</label>
+          <input type="text" id="f_so_number" placeholder="e.g. SO-12345">
+          <div id="routeSuggest" class="suggest-box"></div>
+        </div>
         <div class="field"><label>Project (optional)</label><input type="text" id="f_project" placeholder="e.g. Network Refresh"></div>
       </div>
 
@@ -247,6 +262,17 @@
         <div class="field" style="max-width:220px;margin-bottom:0"><label>Add a mode</label><input type="text" id="newModeInput" placeholder="e.g. Metro"></div>
         <button class="btn secondary small" onclick="addCustomMode()">+ Add mode</button>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Customer &amp; Route Directory</h2>
+      <div class="note">Stored separately from your entries — deleting a month's data never touches this list. Grows automatically as you log entries, or paste/import below. Used for autocomplete on "Customer / Site Name" in New Entry.</div>
+      <div class="field" style="margin-top:10px">
+        <label>Paste to import — one per line: <code>Customer name, SO Number</code></label>
+        <textarea id="customerImportText" rows="4" placeholder="VVF India, SO-1001&#10;OHM Broker, SO-2002"></textarea>
+      </div>
+      <button class="btn secondary small" onclick="importCustomersFromText()">Import list</button>
+      <div id="customerDirectoryList" style="margin-top:14px"></div>
     </div>
 
     <div class="card">
@@ -360,6 +386,8 @@ let evidence = [];
 let currentLegs = [];
 let pendingFiles = [];
 let editingId = null;
+let customers = [];
+let customerRoutes = [];
 
 const BASE_MODES = ['Auto','Taxi','Train','Bus','Two-wheeler','Own Car','Rapido','Ola','Uber','Other'];
 function allModes(){
@@ -503,6 +531,125 @@ async function loadEvidence(){
   });
 }
 
+async function loadCustomerDirectory(){
+  const [custRes, routeRes] = await Promise.all([
+    sb.from('customers').select('*').order('name', {ascending:true}),
+    sb.from('customer_routes').select('*')
+  ]);
+  if(custRes.error){ console.error(custRes.error); customers=[]; }
+  else customers = (custRes.data||[]).map(row=>({ id:row.id, name:row.name||'', soNumber:row.so_number||'' }));
+  if(routeRes.error){ console.error(routeRes.error); customerRoutes=[]; }
+  else customerRoutes = (routeRes.data||[]).map(row=>({
+    id:row.id, customerId:row.customer_id, from:row.from_location||'', to:row.to_location||'',
+    mode:row.mode||'', distance:row.distance||'', rate:row.rate||'', amount:row.amount||''
+  }));
+}
+
+async function importCustomersFromText(){
+  const text = document.getElementById('customerImportText').value;
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  if(lines.length===0){ toast('Paste some rows first'); return; }
+  let added = 0, updated = 0, skipped = 0;
+  for(const line of lines){
+    const parts = line.split(',').map(p=>p.trim());
+    const name = parts[0];
+    const soNumber = parts[1]||'';
+    if(!name){ skipped++; continue; }
+    const cust = customers.find(c=>c.name.toLowerCase()===name.toLowerCase());
+    if(cust){
+      if(soNumber && soNumber!==cust.soNumber){
+        const { error } = await sb.from('customers').update({ so_number: soNumber }).eq('id', cust.id);
+        if(!error){ cust.soNumber = soNumber; updated++; } else skipped++;
+      } else skipped++;
+    } else {
+      const newCust = { id: uid('c'), name, so_number: soNumber||null };
+      const { error } = await sb.from('customers').insert(newCust);
+      if(!error){ customers.push({ id:newCust.id, name, soNumber }); added++; } else skipped++;
+    }
+  }
+  customers.sort((a,b)=> a.name.localeCompare(b.name));
+  document.getElementById('customerImportText').value = '';
+  renderCustomerDirectory();
+  toast(`Imported: ${added} added, ${updated} updated, ${skipped} skipped`);
+}
+
+function renderCustomerDirectory(){
+  const wrap = document.getElementById('customerDirectoryList');
+  if(!wrap) return;
+  if(customers.length===0){ wrap.innerHTML = '<div class="empty">No customers saved yet.</div>'; return; }
+  wrap.innerHTML = customers.map(c=>{
+    const routes = customerRoutes.filter(r=>r.customerId===c.id);
+    return `<div class="entry-row" style="flex-direction:column;align-items:stretch">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><strong>${escapeHtml(c.name)}</strong>${c.soNumber? ` <span class="meta">SO ${escapeHtml(c.soNumber)}</span>`:''} <span class="meta">(${routes.length} route${routes.length===1?'':'s'})</span></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn ghost small" onclick="editCustomerRecord('${c.id}')">Edit</button>
+          <button class="btn danger small" onclick="deleteCustomerRecord('${c.id}')">Delete</button>
+        </div>
+      </div>
+      ${routes.length? `<div style="margin-top:6px;padding-left:8px;border-left:2px solid var(--line)">
+        ${routes.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px">
+          <span>${escapeHtml(r.from)||'?'} → ${escapeHtml(r.to)||'?'} · ${escapeHtml(r.mode)}${r.distance? ' · '+escapeHtml(r.distance)+' km':''}${r.rate? ' · ₹'+escapeHtml(r.rate)+'/km':''}${r.amount? ' · ₹'+escapeHtml(r.amount):''}</span>
+          <span style="display:flex;gap:4px;flex-shrink:0">
+            <button class="btn ghost small" onclick="editRouteRecord('${r.id}')">Edit</button>
+            <button class="btn danger small" onclick="deleteRouteRecord('${r.id}')">Delete</button>
+          </span>
+        </div>`).join('')}
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+
+async function editCustomerRecord(id){
+  const c = customers.find(x=>x.id===id);
+  if(!c) return;
+  const name = prompt('Customer name:', c.name);
+  if(name===null || !name.trim()) return;
+  const soNumber = prompt('SO Number:', c.soNumber||'');
+  if(soNumber===null) return;
+  const { error } = await sb.from('customers').update({ name: name.trim(), so_number: soNumber.trim()||null }).eq('id', id);
+  if(error){ toast('Could not update: ' + error.message); return; }
+  c.name = name.trim(); c.soNumber = soNumber.trim();
+  renderCustomerDirectory();
+  toast('Customer updated');
+}
+async function deleteCustomerRecord(id){
+  const c = customers.find(x=>x.id===id);
+  if(!c) return;
+  if(!confirm(`Delete "${c.name}" from the directory? This only removes it from autocomplete — past entries and evidence are untouched.`)) return;
+  const { error } = await sb.from('customers').delete().eq('id', id);
+  if(error){ toast('Delete failed: ' + error.message); return; }
+  customers = customers.filter(x=>x.id!==id);
+  customerRoutes = customerRoutes.filter(r=>r.customerId!==id);
+  renderCustomerDirectory();
+  toast('Customer removed from directory');
+}
+async function editRouteRecord(id){
+  const r = customerRoutes.find(x=>x.id===id);
+  if(!r) return;
+  const from = prompt('From:', r.from); if(from===null) return;
+  const to = prompt('To:', r.to); if(to===null) return;
+  const mode = prompt('Mode:', r.mode); if(mode===null) return;
+  const distance = prompt('Distance (km):', r.distance); if(distance===null) return;
+  const rate = prompt('Rate/km:', r.rate); if(rate===null) return;
+  const amount = prompt('Amount (₹):', r.amount); if(amount===null) return;
+  const fields = { from_location:from.trim(), to_location:to.trim(), mode:mode.trim(), distance:distance.trim(), rate:rate.trim(), amount:amount.trim() };
+  const { error } = await sb.from('customer_routes').update(fields).eq('id', id);
+  if(error){ toast('Could not update: ' + error.message); return; }
+  r.from=fields.from_location; r.to=fields.to_location; r.mode=fields.mode;
+  r.distance=fields.distance; r.rate=fields.rate; r.amount=fields.amount;
+  renderCustomerDirectory();
+  toast('Route updated');
+}
+async function deleteRouteRecord(id){
+  if(!confirm('Delete this saved route?')) return;
+  const { error } = await sb.from('customer_routes').delete().eq('id', id);
+  if(error){ toast('Delete failed: ' + error.message); return; }
+  customerRoutes = customerRoutes.filter(x=>x.id!==id);
+  renderCustomerDirectory();
+  toast('Route deleted');
+}
+
 /* ---------------- tabs ---------------- */
 document.querySelectorAll('.tab').forEach(t=>{
   t.addEventListener('click', ()=>{
@@ -543,6 +690,70 @@ function updateDayTotal(){
   document.getElementById('dayTotal').textContent = money(total);
 }
 
+/* ---------------- customer / route autocomplete ---------------- */
+function onCustomerInput(){
+  const box = document.getElementById('customerSuggest');
+  const q = document.getElementById('f_customer').value.trim().toLowerCase();
+  hideRouteSuggest();
+  if(!q){ box.classList.remove('show'); box.innerHTML=''; return; }
+  const matches = customers.filter(c=> c.name.toLowerCase().includes(q)).slice(0,8);
+  if(matches.length===0){ box.classList.remove('show'); box.innerHTML=''; return; }
+  box.innerHTML = matches.map(c=>{
+    const routeCount = customerRoutes.filter(r=>r.customerId===c.id).length;
+    return `<div class="suggest-item" onmousedown="selectCustomerSuggestion('${c.id}')">
+      <div class="main">${escapeHtml(c.name)}</div>
+      <div class="sub">${c.soNumber? 'SO '+escapeHtml(c.soNumber)+' · ':''}${routeCount} saved route${routeCount===1?'':'s'}</div>
+    </div>`;
+  }).join('');
+  box.classList.add('show');
+}
+function hideCustomerSuggest(){
+  const box = document.getElementById('customerSuggest');
+  box.classList.remove('show'); box.innerHTML='';
+}
+function selectCustomerSuggestion(customerId){
+  const c = customers.find(x=>x.id===customerId);
+  if(!c) return;
+  document.getElementById('f_customer').value = c.name;
+  document.getElementById('f_so_number').value = c.soNumber||'';
+  hideCustomerSuggest();
+  const routes = customerRoutes.filter(r=>r.customerId===customerId);
+  if(routes.length===1){ applyRouteToLastLeg(routes[0]); }
+  else if(routes.length>1){ showRouteSuggestions(routes); }
+}
+function showRouteSuggestions(routes){
+  const box = document.getElementById('routeSuggest');
+  box.innerHTML = routes.map((r,i)=>`
+    <div class="suggest-item" onmousedown="applyRouteByIndex(${i})">
+      <div class="main">${escapeHtml(r.from)||'?'} → ${escapeHtml(r.to)||'?'}</div>
+      <div class="sub">${escapeHtml(r.mode)}${r.distance? ' · '+escapeHtml(r.distance)+' km':''}${r.amount? ' · ₹'+escapeHtml(r.amount):''}</div>
+    </div>`).join('');
+  box.classList.add('show');
+  window.__pendingRouteChoices = routes;
+}
+function applyRouteByIndex(i){
+  const routes = window.__pendingRouteChoices||[];
+  if(routes[i]) applyRouteToLastLeg(routes[i]);
+  hideRouteSuggest();
+}
+function hideRouteSuggest(){
+  const box = document.getElementById('routeSuggest');
+  box.classList.remove('show'); box.innerHTML='';
+  window.__pendingRouteChoices = null;
+}
+function applyRouteToLastLeg(route){
+  if(currentLegs.length===0) currentLegs.push(blankLeg());
+  const leg = currentLegs[currentLegs.length-1];
+  leg.from = route.from||leg.from;
+  leg.to = route.to||leg.to;
+  leg.mode = route.mode||leg.mode;
+  leg.distance = route.distance||leg.distance;
+  leg.rate = route.rate||leg.rate;
+  leg.amount = route.amount||leg.amount;
+  renderLegs();
+  toast('Route filled from saved history — check before saving');
+}
+
 function resetEntryForm(){
   editingId = null;
   document.getElementById('entryFormTitle').textContent = "Add a day's travel";
@@ -551,6 +762,8 @@ function resetEntryForm(){
   document.getElementById('f_so_number').value = '';
   document.getElementById('f_project').value = profile.project||'';
   document.getElementById('f_tag').value = '';
+  hideCustomerSuggest();
+  hideRouteSuggest();
   currentLegs = [blankLeg()];
   pendingFiles = [];
   renderLegs();
@@ -606,6 +819,51 @@ function renderPendingChips(){
 function removePendingFile(i){ pendingFiles.splice(i,1); renderPendingChips(); }
 
 /* ---------------- save / edit / delete entry ---------------- */
+/* ---------------- keep the customer/route directory in sync with entries ----------------
+   Best-effort and non-blocking: a failure here must never stop the entry itself from saving. */
+async function syncCustomerAndRoutes(customerName, soNumber, legs){
+  if(!customerName) return;
+  try{
+    let cust = customers.find(c=>c.name.toLowerCase()===customerName.toLowerCase());
+    if(!cust){
+      const newCust = { id: uid('c'), name: customerName, so_number: soNumber||null };
+      const { error } = await sb.from('customers').insert(newCust);
+      if(error){ console.error(error); return; }
+      cust = { id:newCust.id, name:customerName, soNumber:soNumber||'' };
+      customers.push(cust);
+    } else if(soNumber && soNumber !== cust.soNumber){
+      const { error } = await sb.from('customers').update({ so_number: soNumber }).eq('id', cust.id);
+      if(!error) cust.soNumber = soNumber;
+    }
+
+    for(const leg of legs){
+      if(!leg.from && !leg.to) continue;
+      const existing = customerRoutes.find(r=> r.customerId===cust.id &&
+        (r.from||'').toLowerCase()===(leg.from||'').toLowerCase() &&
+        (r.to||'').toLowerCase()===(leg.to||'').toLowerCase() &&
+        (r.mode||'')===(leg.mode||''));
+      const routeFields = {
+        from_location: leg.from||'', to_location: leg.to||'', mode: leg.mode||'',
+        distance: String(leg.distance||''), rate: String(leg.rate||''), amount: String(leg.amount||'')
+      };
+      if(existing){
+        const { error } = await sb.from('customer_routes').update(routeFields).eq('id', existing.id);
+        if(!error){
+          existing.from=routeFields.from_location; existing.to=routeFields.to_location; existing.mode=routeFields.mode;
+          existing.distance=routeFields.distance; existing.rate=routeFields.rate; existing.amount=routeFields.amount;
+        }
+      } else {
+        const newRoute = { id: uid('rt'), customer_id: cust.id, ...routeFields };
+        const { error } = await sb.from('customer_routes').insert(newRoute);
+        if(!error) customerRoutes.push({
+          id:newRoute.id, customerId:cust.id, from:routeFields.from_location, to:routeFields.to_location,
+          mode:routeFields.mode, distance:routeFields.distance, rate:routeFields.rate, amount:routeFields.amount
+        });
+      }
+    }
+  }catch(e){ console.error('customer/route sync failed', e); }
+}
+
 async function saveEntry(){
   const date = document.getElementById('f_date').value;
   if(!date){ toast('Pick a date first'); return; }
@@ -626,6 +884,8 @@ async function saveEntry(){
   const { error } = await sb.from('entries').upsert(row);
   if(error){ toast('Save failed: ' + error.message); return; }
 
+  await syncCustomerAndRoutes(row.customer_name, row.so_number, row.legs);
+
   const tag = document.getElementById('f_tag').value.trim() || 'Receipt';
   const monthFolder = date.slice(0,7); // YYYY-MM
   for(const f of pendingFiles){
@@ -640,7 +900,7 @@ async function saveEntry(){
   toast('Entry saved');
   await loadEntries(); await loadEvidence();
   resetEntryForm();
-  renderMonth(); renderEvidenceGrid(); renderDashboard();
+  renderMonth(); renderEvidenceGrid(); renderDashboard(); renderCustomerDirectory();
 }
 
 async function deleteEntry(id){
@@ -1177,6 +1437,7 @@ async function boot(){
     await loadProfile();
     await loadEntries();
     await loadEvidence();
+    await loadCustomerDirectory();
     setSync(true, 'Connected');
   }catch(e){
     console.error(e);
@@ -1186,6 +1447,7 @@ async function boot(){
   renderMonth();
   renderEvidenceGrid();
   renderDashboard();
+  renderCustomerDirectory();
   startIdleWatch();
 }
 if(document.getElementById('appRoot').style.display === 'block'){ boot(); }
