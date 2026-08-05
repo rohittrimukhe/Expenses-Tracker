@@ -153,6 +153,7 @@
       <div class="grid">
         <div class="field"><label>Date</label><input type="date" id="f_date"></div>
         <div class="field"><label>Customer / Site Name</label><input type="text" id="f_customer" placeholder="e.g. VVF India"></div>
+        <div class="field"><label>SO Number</label><input type="text" id="f_so_number" placeholder="e.g. SO-12345"></div>
         <div class="field"><label>Project (optional)</label><input type="text" id="f_project" placeholder="e.g. Network Refresh"></div>
       </div>
 
@@ -486,7 +487,7 @@ async function loadEntries(){
   const { data, error } = await sb.from('entries').select('*').order('date', {ascending:true});
   if(error){ setSync(false,'Entries load failed'); console.error(error); entries=[]; return; }
   entries = (data||[]).map(row=>({
-    id: row.id, date: row.date, customerName: row.customer_name||'', project: row.project||'', legs: row.legs||[]
+    id: row.id, date: row.date, customerName: row.customer_name||'', soNumber: row.so_number||'', project: row.project||'', legs: row.legs||[]
   }));
 }
 
@@ -547,6 +548,7 @@ function resetEntryForm(){
   document.getElementById('entryFormTitle').textContent = "Add a day's travel";
   document.getElementById('f_date').value = new Date().toISOString().slice(0,10);
   document.getElementById('f_customer').value = '';
+  document.getElementById('f_so_number').value = '';
   document.getElementById('f_project').value = profile.project||'';
   document.getElementById('f_tag').value = '';
   currentLegs = [blankLeg()];
@@ -614,6 +616,7 @@ async function saveEntry(){
   const row = {
     id, date,
     customer_name: document.getElementById('f_customer').value.trim(),
+    so_number: document.getElementById('f_so_number').value.trim(),
     project: document.getElementById('f_project').value.trim(),
     legs: legs.map(l=>({
       start:l.start, end:l.end, from:l.from, to:l.to, mode:l.mode,
@@ -661,6 +664,7 @@ function editEntry(id){
   document.getElementById('entryFormTitle').textContent = 'Edit entry — ' + e.date;
   document.getElementById('f_date').value = e.date;
   document.getElementById('f_customer').value = e.customerName||'';
+  document.getElementById('f_so_number').value = e.soNumber||'';
   document.getElementById('f_project').value = e.project||'';
   currentLegs = e.legs.map(l=>({...l}));
   pendingFiles = [];
@@ -730,6 +734,7 @@ function renderMonth(){
         <td>${fmtTime(l.start)}</td><td>${fmtTime(l.end)}</td>
         <td>${escapeHtml(l.from)}</td><td>${escapeHtml(l.to)}</td>
         <td>${i===0? escapeHtml(e.customerName):''}</td>
+        <td>${i===0? escapeHtml(e.soNumber):''}</td>
         <td>${escapeHtml(l.mode)}</td>
         <td class="num">${l.distance? l.distance+' km':''}</td>
         <td class="num">${l.rate||''}</td>
@@ -744,10 +749,10 @@ function renderMonth(){
     <table class="tracker">
       <thead><tr>
         <th>Date</th><th>Start</th><th>End</th><th>From</th><th>To</th>
-        <th>Customer</th><th>Mode</th><th>Distance</th><th>Rate/km</th><th>Total</th><th>Grand Total</th>
+        <th>Customer</th><th>SO Number</th><th>Mode</th><th>Distance</th><th>Rate/km</th><th>Total</th><th>Grand Total</th>
       </tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr class="grand"><td colspan="10" style="text-align:right">Total :</td><td class="num">₹${money(grand)}</td></tr></tfoot>
+      <tfoot><tr class="grand"><td colspan="11" style="text-align:right">Total :</td><td class="num">₹${money(grand)}</td></tr></tfoot>
     </table>
     </div>`;
 
@@ -891,7 +896,7 @@ async function exportPolishedExcel(){
     wb.calcProperties.fullCalcOnLoad = true;
     const ws = wb.addWorksheet('Claim Details');
 
-    const widths = [16.5,13,13,30,30,28,15,15,15,15,15];
+    const widths = [16.5,13,13,30,30,28,16,15,15,15,15,15];
     widths.forEach((w,i)=> ws.getColumn(i+1).width = w);
 
     function setCell(coord, value, opts={}){
@@ -903,36 +908,37 @@ async function exportPolishedExcel(){
       return c;
     }
 
-    ws.mergeCells('A1:K1'); setCell('A1','LRS Services Pvt. Ltd.',{bold:true,h:'center'});
-    ws.mergeCells('A2:K2'); setCell('A2','Address:-'+(profile.address? ' '+profile.address:''),{bold:true});
-    ws.mergeCells('A3:K3'); setCell('A3','LOCAL CONVEYANCE CLAIM FORM',{bold:true,h:'center'});
+    ws.mergeCells('A1:L1'); setCell('A1','LRS Services Pvt. Ltd.',{bold:true,h:'center'});
+    ws.mergeCells('A2:L2'); setCell('A2','Address:-'+(profile.address? ' '+profile.address:''),{bold:true});
+    ws.mergeCells('A3:L3'); setCell('A3','LOCAL CONVEYANCE CLAIM FORM',{bold:true,h:'center'});
     ws.mergeCells('A4:B4'); setCell('A4','S.No.',{bold:true,h:'center'});
     ws.mergeCells('C4:D4'); setCell('C4','Description',{bold:true});
-    ws.mergeCells('E4:K4');
+    ws.mergeCells('E4:L4');
 
     const labels = [
-      [5,1,`Name of Employee: ${profile.name||''}`],
-      [6,2,`Employee Code: ${profile.code||''}`],
-      [7,3,`Employee Grade: ${profile.grade||''}`],
-      [8,4,`Location: ${profile.location||''}`],
-      [9,5,`Project: ${profile.project||''}`]
+      [5,1,'Name of Employee:', profile.name||''],
+      [6,2,'Employee Code:', profile.code||''],
+      [7,3,'Employee Grade:', profile.grade||''],
+      [8,4,'Location:', profile.location||''],
+      [9,5,'Project:', profile.project||'']
     ];
-    labels.forEach(([row,num,text])=>{
+    labels.forEach(([row,num,label,value])=>{
       ws.mergeCells(`A${row}:B${row}`); setCell(`A${row}`, num, {bold:true,h:'center'});
-      ws.mergeCells(`C${row}:D${row}`); setCell(`C${row}`, text, {bold:true});
-      ws.mergeCells(`E${row}:K${row}`);
+      ws.mergeCells(`C${row}:D${row}`); setCell(`C${row}`, label, {bold:true});
+      ws.mergeCells(`E${row}:L${row}`); setCell(`E${row}`, value, {bold:true});
     });
 
-    ws.mergeCells('A10:K10'); setCell('A10','DETAILS OF THE LOCAL CONVEYANCE CLAIMS',{bold:true,h:'center'});
+    ws.mergeCells('A10:L10'); setCell('A10','DETAILS OF THE LOCAL CONVEYANCE CLAIMS',{bold:true,h:'center'});
 
     ws.mergeCells('A11:C11'); setCell('A11','Date of Journey & Time',{bold:true,h:'center',v:'middle',wrap:true});
     ws.mergeCells('D11:E11'); setCell('D11','Particulars',{bold:true,h:'center',v:'middle',wrap:true});
     ws.mergeCells('F11:F12'); setCell('F11','Customer Name',{bold:true,h:'center',v:'middle',wrap:true});
-    ws.mergeCells('G11:G12'); setCell('G11','Mode of Convenyance',{bold:true,h:'center',v:'middle',wrap:true});
-    ws.mergeCells('H11:H12'); setCell('H11','Distance in Kms',{bold:true,h:'center',v:'middle',wrap:true});
-    ws.mergeCells('I11:I12'); setCell('I11','Rate per KM ( as per Policy)',{bold:true,h:'center',v:'middle',wrap:true});
-    ws.mergeCells('J11:J12'); setCell('J11','Total',{bold:true,h:'center',v:'middle',wrap:true});
-    ws.mergeCells('K11:K12'); setCell('K11','Grand Total Amount (Rs.)',{bold:true,h:'center',v:'middle',wrap:true});
+    ws.mergeCells('G11:G12'); setCell('G11','SO Number',{bold:true,h:'center',v:'middle',wrap:true});
+    ws.mergeCells('H11:H12'); setCell('H11','Mode of Convenyance',{bold:true,h:'center',v:'middle',wrap:true});
+    ws.mergeCells('I11:I12'); setCell('I11','Distance in Kms',{bold:true,h:'center',v:'middle',wrap:true});
+    ws.mergeCells('J11:J12'); setCell('J11','Rate per KM ( as per Policy)',{bold:true,h:'center',v:'middle',wrap:true});
+    ws.mergeCells('K11:K12'); setCell('K11','Total',{bold:true,h:'center',v:'middle',wrap:true});
+    ws.mergeCells('L11:L12'); setCell('L11','Grand Total Amount (Rs.)',{bold:true,h:'center',v:'middle',wrap:true});
     setCell('A12','DATE',{bold:true,h:'center',v:'middle'});
     setCell('B12','START TIME',{bold:true,h:'center',v:'middle'});
     setCell('C12','END TIME',{bold:true,h:'center',v:'middle'});
@@ -941,20 +947,38 @@ async function exportPolishedExcel(){
     ws.getRow(11).height = 30;
     ws.getRow(12).height = 48;
 
-    // Single thick border around the whole table (row 1 through the Total
-    // row): medium on the very top, very bottom, and both outer sides only —
-    // every internal row/column boundary stays thin, so individual rows
-    // aren't separately boxed.
-    const COLS = 'ABCDEFGHIJK'.split('');
-    for(let row=1; row<=12; row++){
-      COLS.forEach(col=>{
-        const cell = ws.getCell(`${col}${row}`);
-        const top = (row===1) ? 'medium' : 'thin';
-        const left = col==='A' ? 'medium' : 'thin';
-        const right = col==='K' ? 'medium' : 'thin';
-        cell.border = borderBox(top,'thin',left,right);
-      });
-    }
+    // One thick border around the whole table (row 1 through the Total row):
+    // medium on the very top, very bottom, and both outer sides only — every
+    // internal row/column boundary stays thin, so individual rows aren't
+    // separately boxed. Rows 10-12 (the "DETAILS OF..." banner + column
+    // headers) are their own fully thick-boxed section instead, set off
+    // clearly from the info block above and the data rows below.
+    //
+    // Rows 1-12 are made of merged ranges (e.g. A1:L1), and in ExcelJS every
+    // cell reference inside one merged range shares a single underlying
+    // style object — looping and setting .border on each column in turn
+    // just overwrites the same object repeatedly, leaving only the last
+    // column's value. So each merged block below gets its border set once,
+    // on its anchor cell, instead of looped per column.
+    const COLS = 'ABCDEFGHIJKL'.split('');
+
+    ws.getCell('A1').border = borderBox('medium','thin','medium','medium');
+    ws.getCell('A2').border = borderBox('thin','thin','medium','medium');
+    ws.getCell('A3').border = borderBox('thin','thin','medium','medium');
+
+    [4,5,6,7,8,9].forEach(row=>{
+      ws.getCell(`A${row}`).border = borderBox('thin','thin','medium','thin');
+      ws.getCell(`C${row}`).border = borderBox('thin','thin','thin','thin');
+      ws.getCell(`E${row}`).border = borderBox('thin','thin','thin','medium');
+    });
+
+    ws.getCell('A10').border = borderBox('medium','medium','medium','medium');
+    ['A11','D11','F11','G11','H11','I11','J11','K11','L11'].forEach(coord=>{
+      ws.getCell(coord).border = borderBox('medium','medium','medium','medium');
+    });
+    ['A12','B12','C12','D12','E12'].forEach(coord=>{
+      ws.getCell(coord).border = borderBox('medium','medium','medium','medium');
+    });
 
     let r = 13;
     const totalFirstRow = r;
@@ -969,14 +993,15 @@ async function exportPolishedExcel(){
         setCell(`D${r}`, leg.from||'', {h:'center',v:'middle'});
         setCell(`E${r}`, leg.to||'', {h:'center',v:'middle'});
         setCell(`F${r}`, i===0? (entry.customerName||''): null, {h:'center',v:'middle'});
-        setCell(`G${r}`, leg.mode||'', {h:'center',v:'middle'});
-        setCell(`H${r}`, leg.distance? (leg.distance+' km'): null, {h:'center',v:'middle'});
-        setCell(`I${r}`, leg.rate || null, {h:'center',v:'middle'});
-        setCell(`J${r}`, leg.amount||0, {h:'center',v:'middle'});
+        setCell(`G${r}`, i===0? (entry.soNumber||''): null, {h:'center',v:'middle'});
+        setCell(`H${r}`, leg.mode||'', {h:'center',v:'middle'});
+        setCell(`I${r}`, leg.distance? (leg.distance+' km'): null, {h:'center',v:'middle'});
+        setCell(`J${r}`, leg.rate || null, {h:'center',v:'middle'});
+        setCell(`K${r}`, leg.amount||0, {h:'center',v:'middle'});
         COLS.forEach(col=>{
           const cell = ws.getCell(`${col}${r}`);
           const left = col==='A'?'medium':'thin';
-          const right = col==='K'?'medium':'thin';
+          const right = col==='L'?'medium':'thin';
           cell.border = borderBox('thin','thin',left,right);
         });
         r++;
@@ -985,11 +1010,12 @@ async function exportPolishedExcel(){
       if(entry.legs.length>1){
         ws.mergeCells(`A${startRow}:A${endRow}`);
         ws.mergeCells(`F${startRow}:F${endRow}`);
-        ws.mergeCells(`K${startRow}:K${endRow}`);
+        ws.mergeCells(`G${startRow}:G${endRow}`);
+        ws.mergeCells(`L${startRow}:L${endRow}`);
       }
       const dayTotal = entry.legs.reduce((s,l)=>s+(parseFloat(l.amount)||0),0);
-      const kcell = ws.getCell(`K${startRow}`);
-      kcell.value = { formula:`SUM(J${startRow}:J${endRow})`, result: dayTotal };
+      const kcell = ws.getCell(`L${startRow}`);
+      kcell.value = { formula:`SUM(K${startRow}:K${endRow})`, result: dayTotal };
       kcell.font = { name:FONT, size:11 };
       kcell.alignment = { horizontal:'center', vertical:'middle' };
 
@@ -998,7 +1024,7 @@ async function exportPolishedExcel(){
       COLS.forEach(col=>{
         const cell = ws.getCell(`${col}${r}`);
         const left = col==='A'?'medium':'thin';
-        const right = col==='K'?'medium':'thin';
+        const right = col==='L'?'medium':'thin';
         cell.border = borderBox('thin','thin',left,right);
       });
       r++;
@@ -1006,18 +1032,17 @@ async function exportPolishedExcel(){
     const lastDataRow = r-1;
     const totalRow = r;
     const grandTotal = list.reduce((s,e)=> s + e.legs.reduce((s2,l)=>s2+(parseFloat(l.amount)||0),0), 0);
-    ws.mergeCells(`A${totalRow}:J${totalRow}`);
+    ws.mergeCells(`A${totalRow}:K${totalRow}`);
     setCell(`A${totalRow}`, 'Total : ', {h:'right'});
-    const ktot = ws.getCell(`K${totalRow}`);
-    ktot.value = { formula:`SUM(K${totalFirstRow}:K${lastDataRow})`, result: grandTotal };
+    const ktot = ws.getCell(`L${totalRow}`);
+    ktot.value = { formula:`SUM(L${totalFirstRow}:L${lastDataRow})`, result: grandTotal };
     ktot.font = { name:FONT, size:11, bold:true };
     ktot.alignment = { horizontal:'center' };
-    COLS.forEach(col=>{
-      const cell = ws.getCell(`${col}${totalRow}`);
-      const left = col==='A'?'medium':'thin';
-      const right = col==='K'?'medium':'thin';
-      cell.border = borderBox('thin','medium',left,right);
-    });
+    // A:K is one merged block (the "Total :" label) and L is a separate
+    // cell (the grand-total formula) — set each once, not looped per column
+    // (see the merged-range note above the header borders).
+    ws.getCell(`A${totalRow}`).border = borderBox('double','medium','medium','thin');
+    ws.getCell(`L${totalRow}`).border = borderBox('double','medium','thin','medium');
 
     const today = new Date();
     const todayStr = String(today.getDate()).padStart(2,'0')+'/'+String(today.getMonth()+1).padStart(2,'0')+'/'+today.getFullYear();

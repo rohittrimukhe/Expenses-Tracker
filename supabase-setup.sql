@@ -9,10 +9,12 @@ create table if not exists entries (
   id text primary key,
   date date not null,
   customer_name text,
+  so_number text,
   project text,
   legs jsonb not null,
   created_at timestamptz default now()
 );
+alter table entries add column if not exists so_number text;
 
 create table if not exists evidence (
   id text primary key,
