@@ -17,7 +17,7 @@
     --good:#1a8a4a; --warn:#b5651d; --bad:#c0392b;
   }
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif;font-size:14px;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Arial,Helvetica,sans-serif;font-size:14px;}
   .app{max-width:1080px;margin:0 auto;padding:18px 18px 60px;}
   .topbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
   .brand{display:flex;flex-direction:column;}
@@ -25,12 +25,15 @@
   .brand h1{margin:2px 0 0;font-size:20px;color:var(--navy);}
   .who{font-size:12px;color:var(--muted);text-align:right;}
   .tabs{display:flex;gap:6px;border-bottom:2px solid var(--line);margin-bottom:16px;flex-wrap:wrap;}
-  .tab{padding:9px 14px;cursor:pointer;font-size:13px;font-weight:bold;color:var(--muted);border-bottom:3px solid transparent;user-select:none;}
+  .tab{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;cursor:pointer;font-size:13px;font-weight:bold;color:var(--muted);border-bottom:3px solid transparent;user-select:none;transition:color .15s,border-color .15s;}
+  .tab:hover{color:var(--blue);}
   .tab.active{color:var(--blue);border-bottom-color:var(--blue);}
   .panel{display:none;}
-  .panel.active{display:block;}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:14px;}
-  .card h2{margin:0 0 12px;font-size:15px;color:var(--navy);}
+  .panel.active{display:block;animation:panelIn .22s ease;}
+  @keyframes panelIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(18,41,74,.04);transition:box-shadow .2s,transform .2s;}
+  .card:hover{box-shadow:0 4px 16px rgba(18,41,74,.08);}
+  .card h2{margin:0 0 12px;font-size:15px;color:var(--navy);display:flex;align-items:center;gap:7px;}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;}
   label{display:block;font-size:11px;font-weight:bold;color:var(--muted);text-transform:uppercase;letter-spacing:.02em;margin-bottom:3px;}
   label.required:after,th.required:after,span.required:after{content:' *';color:var(--bad);}
@@ -38,11 +41,14 @@
   input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-light);}
   input.field-error,select.field-error{border-color:var(--bad) !important;box-shadow:0 0 0 3px rgba(192,57,43,.12) !important;}
   .field{margin-bottom:8px;}
-  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:6px;border:1px solid var(--blue);background:var(--blue);color:#fff;font-size:13px;font-weight:bold;cursor:pointer;}
-  .btn:hover{background:#164a99;}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:6px;border:1px solid var(--blue);background:var(--blue);color:#fff;font-size:13px;font-weight:bold;cursor:pointer;transition:background .15s,box-shadow .15s,transform .1s;}
+  .btn:hover{background:#164a99;box-shadow:0 2px 8px rgba(29,95,191,.25);}
+  .btn:active{transform:translateY(1px);}
   .btn.secondary{background:#fff;color:var(--blue);}
   .btn.ghost{background:transparent;border-color:var(--line);color:var(--muted);}
+  .btn.ghost:hover{background:var(--blue-light);box-shadow:none;}
   .btn.danger{background:#fff;border-color:var(--bad);color:var(--bad);}
+  .btn.danger:hover{background:#fdecea;box-shadow:none;}
   .btn.small{padding:4px 9px;font-size:12px;}
   .legs-table{width:100%;border-collapse:collapse;margin:10px 0;}
   .legs-table th{font-size:10px;text-transform:uppercase;color:var(--muted);text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);}
@@ -108,8 +114,10 @@
   .sync-dot.ok{background:var(--good);}
   .sync-dot.bad{background:var(--bad);}
   .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;}
-  .stat-card{background:var(--blue-light);border-radius:8px;padding:14px;text-align:center;}
-  .stat-card .num{font-size:22px;font-weight:bold;color:var(--navy);}
+  .stat-card{background:var(--blue-light);border-radius:10px;padding:14px;text-align:center;transition:transform .15s,box-shadow .15s;}
+  .stat-card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(29,95,191,.14);}
+  .stat-card .icn{color:var(--blue);opacity:.8;margin-bottom:2px;}
+  .stat-card .num{font-size:22px;font-weight:bold;color:var(--navy);display:flex;align-items:center;justify-content:center;gap:6px;}
   .stat-card .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;margin-top:4px;}
   table.months{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px;}
   table.months th,table.months td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;}
@@ -142,32 +150,32 @@
     </div>
     <div class="who">
       <div id="whoBox"></div>
-      <div class="note"><span class="sync-dot" id="syncDot"></span><span id="syncText">Connecting…</span> · <a href="#" onclick="signOut();return false;" style="color:var(--blue)">Sign out</a></div>
+      <div class="note"><span class="sync-dot" id="syncDot"></span><span id="syncText">Connecting…</span> · <a href="#" onclick="signOut();return false;" style="color:var(--blue);display:inline-flex;align-items:center;gap:3px"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg> Sign out</a></div>
       <div class="note" id="usageStats" style="margin-top:3px"></div>
     </div>
   </div>
 
   <div class="tabs">
-    <div class="tab active" data-tab="dashboard">Dashboard</div>
-    <div class="tab" data-tab="entry">+ New Entry</div>
-    <div class="tab" data-tab="month">This Month's Claim</div>
-    <div class="tab" data-tab="evidence">Evidence Vault</div>
-    <div class="tab" data-tab="profile">Employee Details</div>
+    <div class="tab active" data-tab="dashboard"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg> Dashboard</div>
+    <div class="tab" data-tab="entry"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg> New Entry</div>
+    <div class="tab" data-tab="month"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg> This Month's Claim</div>
+    <div class="tab" data-tab="evidence"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-4 4-3-3-6 6"/></svg> Evidence Vault</div>
+    <div class="tab" data-tab="profile"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg> Employee Details</div>
   </div>
 
   <!-- DASHBOARD -->
   <div class="panel active" id="panel-dashboard">
     <div class="card">
-      <h2>At a glance</h2>
+      <h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg> At a glance</h2>
       <div class="stat-grid">
-        <div class="stat-card"><div class="num" id="statAllTime">₹0</div><div class="lbl">All-time claimed</div></div>
-        <div class="stat-card"><div class="num" id="statThisMonth">₹0</div><div class="lbl">This month</div></div>
-        <div class="stat-card"><div class="num" id="statEntries">0</div><div class="lbl">Entries logged</div></div>
-        <div class="stat-card"><div class="num" id="statFiles">0</div><div class="lbl">Evidence files stored</div></div>
+        <div class="stat-card"><div class="icn"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16" cy="14" r="1"/></svg></div><div class="num" id="statAllTime">₹0</div><div class="lbl">All-time claimed</div></div>
+        <div class="stat-card"><div class="icn"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg></div><div class="num" id="statThisMonth">₹0</div><div class="lbl">This month</div></div>
+        <div class="stat-card"><div class="icn"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg></div><div class="num" id="statEntries">0</div><div class="lbl">Entries logged</div></div>
+        <div class="stat-card"><div class="icn"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg></div><div class="num" id="statFiles">0</div><div class="lbl">Evidence files stored</div></div>
       </div>
     </div>
     <div class="card">
-      <h2>Month-by-month</h2>
+      <h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg> Month-by-month</h2>
       <div class="note">Once you've received reimbursement for a month, you can permanently delete that month's data here to free up storage space. This cannot be undone, so keep a copy first if in doubt.</div>
       <div id="monthsTableWrap"></div>
     </div>
@@ -176,7 +184,7 @@
   <!-- NEW ENTRY -->
   <div class="panel" id="panel-entry">
     <div class="card">
-      <h2 id="entryFormTitle">Add a day's travel</h2>
+      <h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg> <span id="entryFormTitle">Add a day's travel</span></h2>
       <form id="entryForm" onsubmit="event.preventDefault(); saveEntry(); return false;">
       <div class="grid">
         <div class="field"><label class="required">Date</label><input type="date" id="f_date"></div>
@@ -205,13 +213,13 @@
         <tbody id="legsBody"></tbody>
       </table>
       </div>
-      <button type="button" class="btn secondary small" onclick="addLeg()">+ Add journey leg</button>
+      <button type="button" class="btn secondary small" onclick="addLeg()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Add journey leg</button>
 
       <div class="row-actions">
         <div class="day-total">Day total: ₹<span id="dayTotal">0</span></div>
         <div>
           <button type="button" class="btn ghost" onclick="resetEntryForm()">Cancel</button>
-          <button type="submit" class="btn">Save entry</button>
+          <button type="submit" class="btn"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Save entry</button>
         </div>
       </div>
       <div class="note">Same day, same claim (e.g. morning + evening return)? Use "+ Add journey leg" so they merge into one claim block. A different customer/trip later that day? Save it as a new entry — it'll show as its own row, exactly like the original sheet. Fields marked <span class="required"></span> are required.</div>
@@ -219,7 +227,7 @@
     </div>
 
     <div class="card">
-      <h2>Supporting evidence (receipts / tickets / bills)</h2>
+      <h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-4 4-3-3-6 6"/></svg> Supporting evidence (receipts / tickets / bills)</h2>
       <div class="evidence-drop" onclick="document.getElementById('fileInput').click()">
         <svg class="upload-icon" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 16V4M12 4L7 9M12 4l5 5"/>
@@ -253,8 +261,8 @@
         <div class="field" style="max-width:120px"><label>Year</label>
           <select id="yearSel"></select>
         </div>
-        <button class="btn secondary" onclick="renderMonth()">Refresh</button>
-        <button class="btn" id="exportBtn" onclick="exportPolishedExcel()">Export to Excel</button>
+        <button class="btn secondary" onclick="renderMonth()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg> Refresh</button>
+        <button class="btn" id="exportBtn" onclick="exportPolishedExcel()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg> <span id="exportBtnText">Export to Excel</span></button>
       </div>
       <div id="monthTableWrap"></div>
     </div>
@@ -263,7 +271,7 @@
   <!-- EVIDENCE -->
   <div class="panel" id="panel-evidence">
     <div class="card">
-      <h2>Evidence Vault <span class="note" style="display:inline">(mirrors the "Evidence" sheet of the exported tracker)</span></h2>
+      <h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-4 4-3-3-6 6"/></svg> Evidence Vault <span class="note" style="display:inline">(mirrors the "Evidence" sheet of the exported tracker)</span></h2>
       <div class="ev-grid" id="evGrid"></div>
     </div>
   </div>
@@ -271,7 +279,7 @@
   <!-- PROFILE -->
   <div class="panel" id="panel-profile">
     <div class="card">
-      <h2>Employee details</h2>
+      <h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg> Employee details</h2>
       <div class="grid">
         <div class="field"><label>Name of Employee</label><input type="text" id="p_name"></div>
         <div class="field"><label>Employee Code</label><input type="text" id="p_code"></div>
@@ -280,41 +288,41 @@
         <div class="field"><label>Default Project</label><input type="text" id="p_project"></div>
         <div class="field"><label>Address (for form header)</label><input type="text" id="p_address"></div>
       </div>
-      <button class="btn" onclick="saveProfile()">Save details</button>
+      <button class="btn" onclick="saveProfile()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Save details</button>
     </div>
 
     <div class="card">
-      <h2>Conveyance modes</h2>
+      <h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M5 17V7l8 0 4 4h2v6"/></svg> Conveyance modes</h2>
       <div class="note">Built-in: Auto, Taxi, Train, Bus, Two-wheeler, Own Car, Rapido, Ola, Uber, Other. Add more below — they show up in the "Mode" dropdown when logging a journey leg.</div>
       <div class="chip-list" id="modeChips" style="margin-top:10px"></div>
       <div style="display:flex;gap:8px;align-items:flex-end;margin-top:10px;flex-wrap:wrap">
         <div class="field" style="max-width:220px;margin-bottom:0"><label>Add a mode</label><input type="text" id="newModeInput" placeholder="e.g. Metro"></div>
-        <button class="btn secondary small" onclick="addCustomMode()">+ Add mode</button>
+        <button class="btn secondary small" onclick="addCustomMode()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Add mode</button>
       </div>
     </div>
 
     <div class="card">
-      <h2>Customer &amp; Route Directory</h2>
+      <h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg> Customer &amp; Route Directory</h2>
       <div class="note">Stored separately from your entries — deleting a month's data never touches this list. Grows automatically as you log entries, or paste/import below. Used for autocomplete on "Customer / Site Name" in New Entry. A customer can have several SO Numbers (e.g. different projects); routes are shared across all of a customer's SO Numbers.</div>
       <div class="field" style="margin-top:10px">
         <label>Paste to import — one per line: <code>Customer name, SO Number, Reference</code> (reference optional)</label>
         <textarea id="customerImportText" rows="4" placeholder="VVF India, SO-1001, Network Refresh&#10;OHM Broker, SO-2002, AMC"></textarea>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn secondary small" onclick="importCustomersFromText()">Import pasted list</button>
-        <button class="btn ghost small" onclick="importFromExistingEntries()">Import from existing entries</button>
+        <button class="btn secondary small" onclick="importCustomersFromText()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg> Import pasted list</button>
+        <button class="btn ghost small" onclick="importFromExistingEntries()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg> Import from existing entries</button>
       </div>
       <div id="customerDirectoryList" style="margin-top:14px"></div>
     </div>
 
     <div class="card">
-      <h2>Change password</h2>
+      <h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Change password</h2>
       <div class="grid">
         <div class="field"><label>Current password</label><input type="password" id="pw_current" autocomplete="current-password"></div>
         <div class="field"><label>New password</label><input type="password" id="pw_new" autocomplete="new-password"></div>
         <div class="field"><label>Confirm new password</label><input type="password" id="pw_confirm" autocomplete="new-password"></div>
       </div>
-      <button class="btn" onclick="changePassword()">Update password</button>
+      <button class="btn" onclick="changePassword()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Update password</button>
       <div class="note">This updates the password used to sign in to this tracker. You must enter your current password to confirm the change.</div>
     </div>
   </div>
@@ -451,6 +459,31 @@ function toast(msg){
 function money(n){ return (Math.round((n||0)*100)/100).toLocaleString('en-IN'); }
 function escapeHtml(s){
   return String(s==null? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------------- small inline icon set (stroke-based, matches the upload icon) ---------------- */
+const ICON_PATHS = {
+  dashboard: '<path d="M4 20V10M12 20V4M20 20v-7"/>',
+  entry: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+  vault: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-4 4-3-3-6 6"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>',
+  check: '<path d="M20 6L9 17l-5-5"/>',
+  download: '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  refresh: '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>',
+  wallet: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16" cy="14" r="1"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+  upload: '<path d="M12 16V4M12 4L7 9M12 4l5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
+  eye: '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/>'
+};
+function icon(name, size){
+  size = size||15;
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;flex-shrink:0">${ICON_PATHS[name]||''}</svg>`;
 }
 function setSync(ok, text){
   document.getElementById('syncDot').className = 'sync-dot ' + (ok?'ok':'bad');
@@ -734,8 +767,8 @@ function renderCustomerDirectory(){
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div><strong>${escapeHtml(c.name)}</strong> <span class="meta">(${soNumbers.length} SO number${soNumbers.length===1?'':'s'} · ${routes.length} route${routes.length===1?'':'s'})</span></div>
         <div style="display:flex;gap:6px">
-          <button class="btn ghost small" onclick="editCustomerRecord('${c.id}')">Rename</button>
-          <button class="btn danger small" onclick="deleteCustomerRecord('${c.id}')">Delete</button>
+          <button class="btn ghost small" onclick="editCustomerRecord('${c.id}')">${icon('pencil',12)} Rename</button>
+          <button class="btn danger small" onclick="deleteCustomerRecord('${c.id}')">${icon('trash',12)} Delete</button>
         </div>
       </div>
       <div style="margin-top:8px;padding-left:8px;border-left:2px solid var(--line)">
@@ -743,19 +776,19 @@ function renderCustomerDirectory(){
         ${soNumbers.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px">
           <span>SO ${escapeHtml(s.soNumber)}${s.reference? ' · '+escapeHtml(s.reference):''}</span>
           <span style="display:flex;gap:4px;flex-shrink:0">
-            <button class="btn ghost small" onclick="editSoNumberRecord('${s.id}')">Edit</button>
-            <button class="btn danger small" onclick="deleteSoNumberRecord('${s.id}')">Delete</button>
+            <button class="btn ghost small" onclick="editSoNumberRecord('${s.id}')">${icon('pencil',12)} Edit</button>
+            <button class="btn danger small" onclick="deleteSoNumberRecord('${s.id}')">${icon('trash',12)} Delete</button>
           </span>
         </div>`).join('') || '<div class="note" style="margin:2px 0">None yet.</div>'}
-        <button class="btn ghost small" style="margin-top:4px" onclick="addSoNumberToCustomer('${c.id}')">+ Add SO Number</button>
+        <button class="btn ghost small" style="margin-top:4px" onclick="addSoNumberToCustomer('${c.id}')">${icon('plus',12)} Add SO Number</button>
       </div>
       <div style="margin-top:8px;padding-left:8px;border-left:2px solid var(--line)">
         <div style="font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:bold;letter-spacing:.02em">Routes</div>
         ${routes.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px">
           <span>${escapeHtml(r.from)||'?'} → ${escapeHtml(r.to)||'?'} · ${escapeHtml(r.mode)}${r.distance? ' · '+escapeHtml(r.distance)+' km':''}${r.rate? ' · ₹'+escapeHtml(r.rate)+'/km':''}${r.amount? ' · ₹'+escapeHtml(r.amount):''}</span>
           <span style="display:flex;gap:4px;flex-shrink:0">
-            <button class="btn ghost small" onclick="editRouteRecord('${r.id}')">Edit</button>
-            <button class="btn danger small" onclick="deleteRouteRecord('${r.id}')">Delete</button>
+            <button class="btn ghost small" onclick="editRouteRecord('${r.id}')">${icon('pencil',12)} Edit</button>
+            <button class="btn danger small" onclick="deleteRouteRecord('${r.id}')">${icon('trash',12)} Delete</button>
           </span>
         </div>`).join('') || '<div class="note" style="margin:2px 0">None yet.</div>'}
       </div>
@@ -1290,9 +1323,9 @@ function renderMonth(){
         </td>`:''}
         ${i===0? `<td rowspan="${legCount}">
           <div style="display:flex;flex-direction:column;gap:4px;min-width:82px">
-            ${!e.soNumber && e.customerName? `<button class="btn ghost small" onclick="quickSetEntrySoNumber('${e.id}')">+ Add SO</button>`:''}
-            <button class="btn ghost small" onclick="editEntry('${e.id}')">Edit</button>
-            <button class="btn danger small" onclick="deleteEntry('${e.id}')">Delete</button>
+            ${!e.soNumber && e.customerName? `<button class="btn ghost small" onclick="quickSetEntrySoNumber('${e.id}')">${icon('plus',12)} Add SO</button>`:''}
+            <button class="btn ghost small" onclick="editEntry('${e.id}')">${icon('pencil',12)} Edit</button>
+            <button class="btn danger small" onclick="deleteEntry('${e.id}')">${icon('trash',12)} Delete</button>
           </div>
         </td>`:''}
       </tr>`;
@@ -1328,7 +1361,7 @@ function openEvidenceModal(entryId){
         <div class="fname">${escapeHtml(ev.fileName)}</div>
         <div class="tag-pill">${escapeHtml(ev.tag)}</div>
         <div class="ev-actions">
-          <button class="btn secondary small" data-action="open">Open</button>
+          <button class="btn secondary small" data-action="open">${icon('eye',12)} Open</button>
         </div>
       </div>`).join('')}</div>`;
     body.querySelectorAll('[data-action="open"]').forEach(btn=>{
@@ -1405,7 +1438,7 @@ function renderDashboard(){
       <td>${byMonth[k].count}</td>
       <td class="num">₹${money(byMonth[k].total)}</td>
       <td class="num">${fileCount}</td>
-      <td><button class="btn danger small" onclick="deleteMonthData('${k}','${label}')">Delete month</button></td>
+      <td><button class="btn danger small" onclick="deleteMonthData('${k}','${label}')">${icon('trash',12)} Delete month</button></td>
     </tr>`;
   }).join('')}
   </tbody></table></div>`;
@@ -1446,8 +1479,8 @@ function renderEvidenceGrid(){
       <div class="meta">${linked? fmtDate(linked.date)+' · '+escapeHtml(linked.customerName): 'Unlinked'}</div>
       <div class="tag-pill">${escapeHtml(ev.tag)}</div>
       <div class="ev-actions">
-        <button class="btn secondary small" data-action="open">Open</button>
-        <button class="btn danger small" onclick="deleteEvidence('${ev.id}')">Delete</button>
+        <button class="btn secondary small" data-action="open">${icon('eye',12)} Open</button>
+        <button class="btn danger small" onclick="deleteEvidence('${ev.id}')">${icon('trash',12)} Delete</button>
       </div>
     </div>`;
   }).join('');
@@ -1488,7 +1521,7 @@ async function exportPolishedExcel(){
   const list = monthEntries();
   if(list.length===0){ toast('No entries to export for this month'); return; }
   const btn = document.getElementById('exportBtn');
-  btn.disabled = true; btn.textContent = 'Building…';
+  btn.disabled = true; document.getElementById('exportBtnText').textContent = 'Building…';
 
   try{
     const FONT = 'Arial';
@@ -1767,7 +1800,7 @@ async function exportPolishedExcel(){
     console.error(err);
     toast('Export failed: ' + err.message);
   }finally{
-    btn.disabled = false; btn.textContent = 'Export to Excel';
+    btn.disabled = false; document.getElementById('exportBtnText').textContent = 'Export to Excel';
   }
 }
 
