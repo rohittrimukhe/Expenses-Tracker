@@ -33,8 +33,10 @@
   .card h2{margin:0 0 12px;font-size:15px;color:var(--navy);}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;}
   label{display:block;font-size:11px;font-weight:bold;color:var(--muted);text-transform:uppercase;letter-spacing:.02em;margin-bottom:3px;}
-  input,select,textarea{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:5px;font-size:13px;font-family:inherit;background:#fff;color:var(--ink);}
-  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);}
+  label.required:after,th.required:after,span.required:after{content:' *';color:var(--bad);}
+  input,select,textarea{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:5px;font-size:13px;font-family:inherit;background:#fff;color:var(--ink);transition:border-color .15s,box-shadow .15s;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-light);}
+  input.field-error,select.field-error{border-color:var(--bad) !important;box-shadow:0 0 0 3px rgba(192,57,43,.12) !important;}
   .field{margin-bottom:8px;}
   .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:6px;border:1px solid var(--blue);background:var(--blue);color:#fff;font-size:13px;font-weight:bold;cursor:pointer;}
   .btn:hover{background:#164a99;}
@@ -45,6 +47,8 @@
   .legs-table{width:100%;border-collapse:collapse;margin:10px 0;}
   .legs-table th{font-size:10px;text-transform:uppercase;color:var(--muted);text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);}
   .legs-table td{padding:4px 6px;vertical-align:top;}
+  .legs-table tbody tr{transition:background .15s;}
+  .legs-table tbody tr:hover{background:var(--blue-light);}
   .legs-table input,.legs-table select{padding:5px 6px;font-size:12px;}
   .row-actions{text-align:right;margin-top:8px;display:flex;justify-content:space-between;align-items:center;}
   .day-total{font-weight:bold;color:var(--navy);}
@@ -124,6 +128,7 @@
     <div class="who">
       <div id="whoBox"></div>
       <div class="note"><span class="sync-dot" id="syncDot"></span><span id="syncText">Connecting…</span> · <a href="#" onclick="signOut();return false;" style="color:var(--blue)">Sign out</a></div>
+      <div class="note" id="usageStats" style="margin-top:3px"></div>
     </div>
   </div>
 
@@ -157,10 +162,11 @@
   <div class="panel" id="panel-entry">
     <div class="card">
       <h2 id="entryFormTitle">Add a day's travel</h2>
+      <form id="entryForm" onsubmit="event.preventDefault(); saveEntry(); return false;">
       <div class="grid">
-        <div class="field"><label>Date</label><input type="date" id="f_date"></div>
+        <div class="field"><label class="required">Date</label><input type="date" id="f_date"></div>
         <div class="field" style="position:relative">
-          <label>Customer / Site Name</label>
+          <label class="required">Customer / Site Name</label>
           <input type="text" id="f_customer" placeholder="e.g. VVF India" autocomplete="off" oninput="onCustomerInput()" onfocus="onCustomerInput()" onblur="setTimeout(hideCustomerSuggest,150)">
           <div id="customerSuggest" class="suggest-box"></div>
         </div>
@@ -175,24 +181,25 @@
       <div class="table-scroll">
       <table class="legs-table" id="legsTable">
         <thead><tr>
-          <th style="width:9%">Start</th><th style="width:9%">End</th>
-          <th style="width:19%">From</th><th style="width:19%">To</th>
-          <th style="width:10%">Mode</th><th style="width:10%">Distance (km)</th>
-          <th style="width:9%">Rate/km</th><th style="width:10%">Amount (₹)</th><th style="width:5%"></th>
+          <th class="required" style="width:9%">Start</th><th class="required" style="width:9%">End</th>
+          <th class="required" style="width:19%">From</th><th class="required" style="width:19%">To</th>
+          <th class="required" style="width:10%">Mode</th><th style="width:10%">Distance (km)</th>
+          <th style="width:9%">Rate/km</th><th class="required" style="width:10%">Amount (₹)</th><th style="width:5%"></th>
         </tr></thead>
         <tbody id="legsBody"></tbody>
       </table>
       </div>
-      <button class="btn secondary small" onclick="addLeg()">+ Add journey leg</button>
+      <button type="button" class="btn secondary small" onclick="addLeg()">+ Add journey leg</button>
 
       <div class="row-actions">
         <div class="day-total">Day total: ₹<span id="dayTotal">0</span></div>
         <div>
-          <button class="btn ghost" onclick="resetEntryForm()">Cancel</button>
-          <button class="btn" onclick="saveEntry()">Save entry</button>
+          <button type="button" class="btn ghost" onclick="resetEntryForm()">Cancel</button>
+          <button type="submit" class="btn">Save entry</button>
         </div>
       </div>
-      <div class="note">Same day, same claim (e.g. morning + evening return)? Use "+ Add journey leg" so they merge into one claim block. A different customer/trip later that day? Save it as a new entry — it'll show as its own row, exactly like the original sheet.</div>
+      <div class="note">Same day, same claim (e.g. morning + evening return)? Use "+ Add journey leg" so they merge into one claim block. A different customer/trip later that day? Save it as a new entry — it'll show as its own row, exactly like the original sheet. Fields marked <span class="required"></span> are required.</div>
+      </form>
     </div>
 
     <div class="card">
@@ -412,6 +419,41 @@ function escapeHtml(s){
 function setSync(ok, text){
   document.getElementById('syncDot').className = 'sync-dot ' + (ok?'ok':'bad');
   document.getElementById('syncText').textContent = text;
+}
+
+/* ---------------- DB / Storage usage stats ---------------- */
+const FREE_TIER_DB_LIMIT_MB = 500;
+const FREE_TIER_STORAGE_LIMIT_MB = 1024;
+
+function daysRemainingEstimate(usedMB, limitMB){
+  if(entries.length===0 || usedMB<=0) return null;
+  const oldest = entries.reduce((min,e)=> e.date<min? e.date:min, entries[0].date);
+  const days = Math.max(1, Math.round((Date.now() - new Date(oldest+'T00:00:00').getTime())/86400000));
+  const ratePerDay = usedMB/days;
+  if(ratePerDay<=0) return null;
+  const remainingMB = Math.max(0, limitMB-usedMB);
+  return Math.round(remainingMB/ratePerDay);
+}
+
+function usageLine(label, usedMB, limitMB){
+  const pct = Math.min(100, (usedMB/limitMB)*100);
+  const days = daysRemainingEstimate(usedMB, limitMB);
+  const daysText = days==null? '' : ` · ~${days} day${days===1?'':'s'} left at your average pace`;
+  return `${label}: ${usedMB.toFixed(1)} MB / ${limitMB} MB (${pct.toFixed(1)}%)${daysText}`;
+}
+
+async function loadUsageStats(){
+  const el = document.getElementById('usageStats');
+  try{
+    const [dbRes, stoRes] = await Promise.all([
+      sb.rpc('get_db_size_bytes'),
+      sb.rpc('get_storage_size_bytes')
+    ]);
+    if(dbRes.error || stoRes.error){ console.error(dbRes.error||stoRes.error); el.textContent=''; return; }
+    const dbMB = (dbRes.data||0)/1048576;
+    const stoMB = (stoRes.data||0)/1048576;
+    el.innerHTML = `${usageLine('DB', dbMB, FREE_TIER_DB_LIMIT_MB)}<br>${usageLine('Evidence storage', stoMB, FREE_TIER_STORAGE_LIMIT_MB)}`;
+  }catch(e){ console.error(e); el.textContent=''; }
 }
 
 /* ---------------- Supabase data layer ---------------- */
@@ -663,6 +705,10 @@ document.querySelectorAll('.tab').forEach(t=>{
   });
 });
 
+document.getElementById('panel-entry').addEventListener('input', (e)=>{
+  if(e.target.classList) e.target.classList.remove('field-error');
+});
+
 /* ---------------- entry form: legs ---------------- */
 function blankLeg(){ return {start:'',end:'',from:'',to:'',mode:'Auto',distance:'',rate:'',amount:''}; }
 
@@ -764,6 +810,7 @@ function resetEntryForm(){
   document.getElementById('f_tag').value = '';
   hideCustomerSuggest();
   hideRouteSuggest();
+  document.querySelectorAll('.field-error').forEach(el=>el.classList.remove('field-error'));
   currentLegs = [blankLeg()];
   pendingFiles = [];
   renderLegs();
@@ -864,11 +911,53 @@ async function syncCustomerAndRoutes(customerName, soNumber, legs){
   }catch(e){ console.error('customer/route sync failed', e); }
 }
 
+/* ---------------- required-field validation ---------------- */
+function validateEntryForm(){
+  document.querySelectorAll('.field-error').forEach(el=>el.classList.remove('field-error'));
+  let firstInvalid = null;
+  const markError = (el)=>{ if(el){ el.classList.add('field-error'); if(!firstInvalid) firstInvalid = el; } };
+
+  const dateEl = document.getElementById('f_date');
+  const custEl = document.getElementById('f_customer');
+  if(!dateEl.value) markError(dateEl);
+  if(!custEl.value.trim()) markError(custEl);
+
+  const legRows = document.querySelectorAll('#legsBody tr');
+  let completeLegCount = 0;
+  currentLegs.forEach((l,i)=>{
+    // "mode" defaults to 'Auto' even on an untouched row, so it doesn't
+    // count as a signal that the user started filling this leg in.
+    const hasAny = l.start||l.end||l.from||l.to||l.amount;
+    const complete = l.start && l.end && l.from && l.to && l.mode && l.amount;
+    if(complete){ completeLegCount++; return; }
+    if(!hasAny) return; // completely blank row — ignore, not an error
+    const row = legRows[i];
+    if(!row) return;
+    const inputs = row.querySelectorAll('input,select');
+    if(!l.start) markError(inputs[0]);
+    if(!l.end) markError(inputs[1]);
+    if(!l.from) markError(inputs[2]);
+    if(!l.to) markError(inputs[3]);
+    if(!l.mode) markError(inputs[4]);
+    if(!l.amount) markError(inputs[7]);
+  });
+
+  if(firstInvalid){
+    toast('Please fill all required fields (highlighted in red)');
+    firstInvalid.focus();
+    return false;
+  }
+  if(completeLegCount===0){
+    toast('Add at least one complete journey leg (Start, End, From, To, Mode, Amount)');
+    return false;
+  }
+  return true;
+}
+
 async function saveEntry(){
+  if(!validateEntryForm()) return;
   const date = document.getElementById('f_date').value;
-  if(!date){ toast('Pick a date first'); return; }
-  const legs = currentLegs.filter(l=> l.from || l.to || l.amount);
-  if(legs.length===0){ toast('Add at least one journey leg'); return; }
+  const legs = currentLegs.filter(l=> l.start && l.end && l.from && l.to && l.mode && l.amount);
 
   const id = editingId || uid('e');
   const row = {
@@ -955,7 +1044,13 @@ function monthEntries(){
   }).sort((a,b)=> a.date.localeCompare(b.date));
 }
 function monthEvidence(list){
-  return evidence.filter(ev => list.some(e => e.id === ev.entryId));
+  // Walk entries in date order (list is already sorted) so the Evidence
+  // sheet/vault comes out date-wise too, not in upload order.
+  const result = [];
+  list.forEach(e=>{
+    evidence.filter(ev=>ev.entryId===e.id).forEach(ev=>result.push(ev));
+  });
+  return result;
 }
 
 function fmtDate(d){
@@ -1097,7 +1192,14 @@ async function deleteMonthData(monthKey, label){
 function renderEvidenceGrid(){
   const grid = document.getElementById('evGrid');
   if(evidence.length===0){ grid.innerHTML = '<div class="empty">No evidence uploaded yet.</div>'; return; }
-  grid.innerHTML = evidence.map(ev=>{
+  const sorted = [...evidence].sort((a,b)=>{
+    const da = entries.find(e=>e.id===a.entryId), db = entries.find(e=>e.id===b.entryId);
+    if(da && db) return da.date.localeCompare(db.date) || (a.uploadedAt||'').localeCompare(b.uploadedAt||'');
+    if(da && !db) return -1;
+    if(!da && db) return 1;
+    return (a.uploadedAt||'').localeCompare(b.uploadedAt||'');
+  });
+  grid.innerHTML = sorted.map(ev=>{
     const linked = entries.find(e=>e.id===ev.entryId);
     return `<div class="ev-card" data-ev-id="${escapeHtml(ev.id)}">
       ${ev.mimeType.startsWith('image/') ? `<img src="${escapeHtml(ev.url)}">` : `<div style="height:110px;display:flex;align-items:center;justify-content:center;font-size:32px;background:#f0f2f5;border-radius:5px;">📄</div>`}
@@ -1448,6 +1550,7 @@ async function boot(){
   renderEvidenceGrid();
   renderDashboard();
   renderCustomerDirectory();
+  loadUsageStats();
   startIdleWatch();
 }
 if(document.getElementById('appRoot').style.display === 'block'){ boot(); }

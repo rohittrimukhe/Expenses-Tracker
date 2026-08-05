@@ -136,6 +136,38 @@ create policy "evidence insert" on storage.objects
 create policy "evidence delete" on storage.objects
   for delete using (bucket_id = 'evidence' and auth.uid() is not null);
 
+-- ---------------- usage stats (DB / Storage size shown in the app header) ----------------
+-- Neither figure is reachable through the normal table API, so these are
+-- exposed as RPC functions instead. Both are security definer (so they can
+-- read Postgres' own catalogs / storage.objects regardless of the calling
+-- role's exact table grants) but gate on auth.uid() themselves and are only
+-- granted to "authenticated" — an anonymous caller gets null back.
+
+create or replace function get_db_size_bytes()
+returns bigint
+language sql
+security definer
+set search_path = public
+as $$
+  select case when auth.uid() is not null then pg_database_size(current_database()) else null end;
+$$;
+
+create or replace function get_storage_size_bytes()
+returns bigint
+language sql
+security definer
+set search_path = public
+as $$
+  select case when auth.uid() is not null
+    then coalesce((select sum((metadata->>'size')::bigint) from storage.objects where bucket_id = 'evidence'), 0)
+    else null end;
+$$;
+
+revoke all on function get_db_size_bytes() from public;
+revoke all on function get_storage_size_bytes() from public;
+grant execute on function get_db_size_bytes() to authenticated;
+grant execute on function get_storage_size_bytes() to authenticated;
+
 -- ---------------- your login ----------------
 -- After running this: Dashboard → Authentication → Users → Add user —
 -- create your one login (email + password). There's no public sign-up in the
