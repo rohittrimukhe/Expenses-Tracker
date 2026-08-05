@@ -66,6 +66,29 @@ create table if not exists customer_routes (
   created_at timestamptz default now()
 );
 
+-- A customer can have several SO Numbers (different projects/POs), each
+-- with its own reference label (e.g. "Network Refresh", "AMC", "FMS").
+-- Routes stay on "customers" above, not here — a route is the same
+-- physical trip regardless of which SO Number it gets billed against.
+create table if not exists customer_so_numbers (
+  id text primary key,
+  customer_id text references customers(id) on delete cascade,
+  so_number text not null,
+  reference text,
+  created_at timestamptz default now()
+);
+
+-- One-time backfill: move any SO Number already sitting on "customers"
+-- (from before this table existed) into it. Guarded so re-running this
+-- file never creates a duplicate.
+insert into customer_so_numbers (id, customer_id, so_number, reference)
+select 'so_' || c.id, c.id, c.so_number, null
+from customers c
+where c.so_number is not null and c.so_number <> ''
+  and not exists (
+    select 1 from customer_so_numbers s where s.customer_id = c.id and s.so_number = c.so_number
+  );
+
 -- ---------------- row level security ----------------
 -- auth.uid() is only non-null for a signed-in session, and Postgres checks
 -- this on every request — it can't be bypassed by calling the API directly
@@ -77,6 +100,7 @@ alter table profile enable row level security;
 alter table client_errors enable row level security;
 alter table customers enable row level security;
 alter table customer_routes enable row level security;
+alter table customer_so_numbers enable row level security;
 
 drop policy if exists "auth only - entries" on entries;
 drop policy if exists "auth only - evidence" on evidence;
@@ -85,6 +109,7 @@ drop policy if exists "auth only insert - client_errors" on client_errors;
 drop policy if exists "auth only select - client_errors" on client_errors;
 drop policy if exists "auth only - customers" on customers;
 drop policy if exists "auth only - customer_routes" on customer_routes;
+drop policy if exists "auth only - customer_so_numbers" on customer_so_numbers;
 
 create policy "auth only - entries" on entries
   for all using (auth.uid() is not null) with check (auth.uid() is not null);
@@ -100,6 +125,8 @@ create policy "auth only - customers" on customers
   for all using (auth.uid() is not null) with check (auth.uid() is not null);
 create policy "auth only - customer_routes" on customer_routes
   for all using (auth.uid() is not null) with check (auth.uid() is not null);
+create policy "auth only - customer_so_numbers" on customer_so_numbers
+  for all using (auth.uid() is not null) with check (auth.uid() is not null);
 
 -- Table grants: "authenticated" only. RLS above already blocks "anon" from
 -- reading/writing any row, so this doesn't change what's reachable today —
@@ -114,6 +141,7 @@ grant all on profile to authenticated;
 grant select, insert on client_errors to authenticated;
 grant all on customers to authenticated;
 grant all on customer_routes to authenticated;
+grant all on customer_so_numbers to authenticated;
 
 -- ---------------- storage policies for the "evidence" bucket ----------------
 -- Fetching a file you already have the URL for works regardless of this

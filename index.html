@@ -173,10 +173,11 @@
         <div class="field" style="position:relative">
           <label>SO Number</label>
           <input type="text" id="f_so_number" placeholder="e.g. SO-12345">
-          <div id="routeSuggest" class="suggest-box"></div>
+          <div id="soSuggest" class="suggest-box"></div>
         </div>
         <div class="field"><label>Project (optional)</label><input type="text" id="f_project" placeholder="e.g. Network Refresh"></div>
       </div>
+      <div id="routeSuggest" class="suggest-box" style="position:static;margin-bottom:10px"></div>
 
       <div class="table-scroll">
       <table class="legs-table" id="legsTable">
@@ -273,12 +274,15 @@
 
     <div class="card">
       <h2>Customer &amp; Route Directory</h2>
-      <div class="note">Stored separately from your entries — deleting a month's data never touches this list. Grows automatically as you log entries, or paste/import below. Used for autocomplete on "Customer / Site Name" in New Entry.</div>
+      <div class="note">Stored separately from your entries — deleting a month's data never touches this list. Grows automatically as you log entries, or paste/import below. Used for autocomplete on "Customer / Site Name" in New Entry. A customer can have several SO Numbers (e.g. different projects); routes are shared across all of a customer's SO Numbers.</div>
       <div class="field" style="margin-top:10px">
-        <label>Paste to import — one per line: <code>Customer name, SO Number</code></label>
-        <textarea id="customerImportText" rows="4" placeholder="VVF India, SO-1001&#10;OHM Broker, SO-2002"></textarea>
+        <label>Paste to import — one per line: <code>Customer name, SO Number, Reference</code> (reference optional)</label>
+        <textarea id="customerImportText" rows="4" placeholder="VVF India, SO-1001, Network Refresh&#10;OHM Broker, SO-2002, AMC"></textarea>
       </div>
-      <button class="btn secondary small" onclick="importCustomersFromText()">Import list</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn secondary small" onclick="importCustomersFromText()">Import pasted list</button>
+        <button class="btn ghost small" onclick="importFromExistingEntries()">Import from existing entries</button>
+      </div>
       <div id="customerDirectoryList" style="margin-top:14px"></div>
     </div>
 
@@ -395,6 +399,7 @@ let pendingFiles = [];
 let editingId = null;
 let customers = [];
 let customerRoutes = [];
+let customerSoNumbers = [];
 
 const BASE_MODES = ['Auto','Taxi','Train','Bus','Two-wheeler','Own Car','Rapido','Ola','Uber','Other'];
 function allModes(){
@@ -574,45 +579,117 @@ async function loadEvidence(){
 }
 
 async function loadCustomerDirectory(){
-  const [custRes, routeRes] = await Promise.all([
+  const [custRes, routeRes, soRes] = await Promise.all([
     sb.from('customers').select('*').order('name', {ascending:true}),
-    sb.from('customer_routes').select('*')
+    sb.from('customer_routes').select('*'),
+    sb.from('customer_so_numbers').select('*')
   ]);
   if(custRes.error){ console.error(custRes.error); customers=[]; }
-  else customers = (custRes.data||[]).map(row=>({ id:row.id, name:row.name||'', soNumber:row.so_number||'' }));
+  else customers = (custRes.data||[]).map(row=>({ id:row.id, name:row.name||'' }));
   if(routeRes.error){ console.error(routeRes.error); customerRoutes=[]; }
   else customerRoutes = (routeRes.data||[]).map(row=>({
     id:row.id, customerId:row.customer_id, from:row.from_location||'', to:row.to_location||'',
     mode:row.mode||'', distance:row.distance||'', rate:row.rate||'', amount:row.amount||''
   }));
+  if(soRes.error){ console.error(soRes.error); customerSoNumbers=[]; }
+  else customerSoNumbers = (soRes.data||[]).map(row=>({
+    id:row.id, customerId:row.customer_id, soNumber:row.so_number||'', reference:row.reference||''
+  }));
+}
+
+/* ---------------- shared find-or-create helpers (used by sync, import, and the backfill) ---------------- */
+async function ensureCustomer(name){
+  let cust = customers.find(c=>c.name.toLowerCase()===name.toLowerCase());
+  if(cust) return cust;
+  const newCust = { id: uid('c'), name };
+  const { error } = await sb.from('customers').insert(newCust);
+  if(error){ console.error(error); return null; }
+  cust = { id:newCust.id, name };
+  customers.push(cust);
+  customers.sort((a,b)=> a.name.localeCompare(b.name));
+  return cust;
+}
+async function ensureSoNumber(customerId, soNumber, reference){
+  if(!soNumber) return null;
+  let so = customerSoNumbers.find(s=> s.customerId===customerId && s.soNumber.toLowerCase()===soNumber.toLowerCase());
+  if(so){
+    if(reference && reference!==so.reference){
+      const { error } = await sb.from('customer_so_numbers').update({ reference }).eq('id', so.id);
+      if(!error) so.reference = reference;
+    }
+    return so;
+  }
+  const newSo = { id: uid('so'), customer_id: customerId, so_number: soNumber, reference: reference||null };
+  const { error } = await sb.from('customer_so_numbers').insert(newSo);
+  if(error){ console.error(error); return null; }
+  so = { id:newSo.id, customerId, soNumber, reference:reference||'' };
+  customerSoNumbers.push(so);
+  return so;
+}
+async function ensureRoute(customerId, leg){
+  if(!leg.from && !leg.to) return null;
+  const existing = customerRoutes.find(r=> r.customerId===customerId &&
+    (r.from||'').toLowerCase()===(leg.from||'').toLowerCase() &&
+    (r.to||'').toLowerCase()===(leg.to||'').toLowerCase() &&
+    (r.mode||'')===(leg.mode||''));
+  const routeFields = {
+    from_location: leg.from||'', to_location: leg.to||'', mode: leg.mode||'',
+    distance: String(leg.distance||''), rate: String(leg.rate||''), amount: String(leg.amount||'')
+  };
+  if(existing){
+    const { error } = await sb.from('customer_routes').update(routeFields).eq('id', existing.id);
+    if(!error){
+      existing.from=routeFields.from_location; existing.to=routeFields.to_location; existing.mode=routeFields.mode;
+      existing.distance=routeFields.distance; existing.rate=routeFields.rate; existing.amount=routeFields.amount;
+    }
+    return existing;
+  }
+  const newRoute = { id: uid('rt'), customer_id: customerId, ...routeFields };
+  const { error } = await sb.from('customer_routes').insert(newRoute);
+  if(error){ console.error(error); return null; }
+  const route = {
+    id:newRoute.id, customerId, from:routeFields.from_location, to:routeFields.to_location,
+    mode:routeFields.mode, distance:routeFields.distance, rate:routeFields.rate, amount:routeFields.amount
+  };
+  customerRoutes.push(route);
+  return route;
+}
+
+async function importFromExistingEntries(){
+  if(entries.length===0){ toast('No existing entries to import from'); return; }
+  if(!confirm(`Scan all ${entries.length} existing entries and add any customers, SO Numbers, and routes not already in the directory?`)) return;
+  let touched = 0;
+  for(const e of entries){
+    if(!e.customerName) continue;
+    const cust = await ensureCustomer(e.customerName);
+    if(!cust) continue;
+    if(e.soNumber) await ensureSoNumber(cust.id, e.soNumber, null);
+    for(const leg of e.legs){ await ensureRoute(cust.id, leg); }
+    touched++;
+  }
+  renderCustomerDirectory();
+  toast(`Directory updated from ${touched} existing entries`);
 }
 
 async function importCustomersFromText(){
   const text = document.getElementById('customerImportText').value;
   const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
   if(lines.length===0){ toast('Paste some rows first'); return; }
-  let added = 0, updated = 0, skipped = 0;
+  let rows = 0, skipped = 0;
   for(const line of lines){
     const parts = line.split(',').map(p=>p.trim());
     const name = parts[0];
     const soNumber = parts[1]||'';
+    const reference = parts[2]||'';
     if(!name){ skipped++; continue; }
-    const cust = customers.find(c=>c.name.toLowerCase()===name.toLowerCase());
-    if(cust){
-      if(soNumber && soNumber!==cust.soNumber){
-        const { error } = await sb.from('customers').update({ so_number: soNumber }).eq('id', cust.id);
-        if(!error){ cust.soNumber = soNumber; updated++; } else skipped++;
-      } else skipped++;
-    } else {
-      const newCust = { id: uid('c'), name, so_number: soNumber||null };
-      const { error } = await sb.from('customers').insert(newCust);
-      if(!error){ customers.push({ id:newCust.id, name, soNumber }); added++; } else skipped++;
-    }
+    const cust = await ensureCustomer(name);
+    if(!cust){ skipped++; continue; }
+    if(soNumber) await ensureSoNumber(cust.id, soNumber, reference||null);
+    rows++;
   }
-  customers.sort((a,b)=> a.name.localeCompare(b.name));
   document.getElementById('customerImportText').value = '';
   renderCustomerDirectory();
-  toast(`Imported: ${added} added, ${updated} updated, ${skipped} skipped`);
+  toast(`Imported: ${rows} row${rows===1?'':'s'} processed, ${skipped} skipped`);
 }
 
 function renderCustomerDirectory(){
@@ -621,25 +698,68 @@ function renderCustomerDirectory(){
   if(customers.length===0){ wrap.innerHTML = '<div class="empty">No customers saved yet.</div>'; return; }
   wrap.innerHTML = customers.map(c=>{
     const routes = customerRoutes.filter(r=>r.customerId===c.id);
+    const soNumbers = customerSoNumbers.filter(s=>s.customerId===c.id);
     return `<div class="entry-row" style="flex-direction:column;align-items:stretch">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <div><strong>${escapeHtml(c.name)}</strong>${c.soNumber? ` <span class="meta">SO ${escapeHtml(c.soNumber)}</span>`:''} <span class="meta">(${routes.length} route${routes.length===1?'':'s'})</span></div>
+        <div><strong>${escapeHtml(c.name)}</strong> <span class="meta">(${soNumbers.length} SO number${soNumbers.length===1?'':'s'} · ${routes.length} route${routes.length===1?'':'s'})</span></div>
         <div style="display:flex;gap:6px">
-          <button class="btn ghost small" onclick="editCustomerRecord('${c.id}')">Edit</button>
+          <button class="btn ghost small" onclick="editCustomerRecord('${c.id}')">Rename</button>
           <button class="btn danger small" onclick="deleteCustomerRecord('${c.id}')">Delete</button>
         </div>
       </div>
-      ${routes.length? `<div style="margin-top:6px;padding-left:8px;border-left:2px solid var(--line)">
+      <div style="margin-top:8px;padding-left:8px;border-left:2px solid var(--line)">
+        <div style="font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:bold;letter-spacing:.02em">SO Numbers</div>
+        ${soNumbers.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px">
+          <span>SO ${escapeHtml(s.soNumber)}${s.reference? ' · '+escapeHtml(s.reference):''}</span>
+          <span style="display:flex;gap:4px;flex-shrink:0">
+            <button class="btn ghost small" onclick="editSoNumberRecord('${s.id}')">Edit</button>
+            <button class="btn danger small" onclick="deleteSoNumberRecord('${s.id}')">Delete</button>
+          </span>
+        </div>`).join('') || '<div class="note" style="margin:2px 0">None yet.</div>'}
+        <button class="btn ghost small" style="margin-top:4px" onclick="addSoNumberToCustomer('${c.id}')">+ Add SO Number</button>
+      </div>
+      <div style="margin-top:8px;padding-left:8px;border-left:2px solid var(--line)">
+        <div style="font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:bold;letter-spacing:.02em">Routes</div>
         ${routes.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px">
           <span>${escapeHtml(r.from)||'?'} → ${escapeHtml(r.to)||'?'} · ${escapeHtml(r.mode)}${r.distance? ' · '+escapeHtml(r.distance)+' km':''}${r.rate? ' · ₹'+escapeHtml(r.rate)+'/km':''}${r.amount? ' · ₹'+escapeHtml(r.amount):''}</span>
           <span style="display:flex;gap:4px;flex-shrink:0">
             <button class="btn ghost small" onclick="editRouteRecord('${r.id}')">Edit</button>
             <button class="btn danger small" onclick="deleteRouteRecord('${r.id}')">Delete</button>
           </span>
-        </div>`).join('')}
-      </div>`:''}
+        </div>`).join('') || '<div class="note" style="margin:2px 0">None yet.</div>'}
+      </div>
     </div>`;
   }).join('');
+}
+
+async function addSoNumberToCustomer(customerId){
+  const soNumber = prompt('SO Number:'); if(!soNumber || !soNumber.trim()) return;
+  const reference = prompt('Reference (e.g. Network Refresh, AMC, FMS) — optional:');
+  const so = await ensureSoNumber(customerId, soNumber.trim(), (reference||'').trim()||null);
+  if(!so){ toast('Could not add SO Number'); return; }
+  renderCustomerDirectory();
+  toast('SO Number added');
+}
+async function editSoNumberRecord(id){
+  const s = customerSoNumbers.find(x=>x.id===id);
+  if(!s) return;
+  const soNumber = prompt('SO Number:', s.soNumber);
+  if(soNumber===null || !soNumber.trim()) return;
+  const reference = prompt('Reference:', s.reference||'');
+  if(reference===null) return;
+  const { error } = await sb.from('customer_so_numbers').update({ so_number: soNumber.trim(), reference: reference.trim()||null }).eq('id', id);
+  if(error){ toast('Could not update: ' + error.message); return; }
+  s.soNumber = soNumber.trim(); s.reference = reference.trim();
+  renderCustomerDirectory();
+  toast('SO Number updated');
+}
+async function deleteSoNumberRecord(id){
+  if(!confirm('Delete this SO Number? Past entries and evidence are untouched.')) return;
+  const { error } = await sb.from('customer_so_numbers').delete().eq('id', id);
+  if(error){ toast('Delete failed: ' + error.message); return; }
+  customerSoNumbers = customerSoNumbers.filter(x=>x.id!==id);
+  renderCustomerDirectory();
+  toast('SO Number removed');
 }
 
 async function editCustomerRecord(id){
@@ -647,13 +767,12 @@ async function editCustomerRecord(id){
   if(!c) return;
   const name = prompt('Customer name:', c.name);
   if(name===null || !name.trim()) return;
-  const soNumber = prompt('SO Number:', c.soNumber||'');
-  if(soNumber===null) return;
-  const { error } = await sb.from('customers').update({ name: name.trim(), so_number: soNumber.trim()||null }).eq('id', id);
+  const { error } = await sb.from('customers').update({ name: name.trim() }).eq('id', id);
   if(error){ toast('Could not update: ' + error.message); return; }
-  c.name = name.trim(); c.soNumber = soNumber.trim();
+  c.name = name.trim();
+  customers.sort((a,b)=> a.name.localeCompare(b.name));
   renderCustomerDirectory();
-  toast('Customer updated');
+  toast('Customer renamed');
 }
 async function deleteCustomerRecord(id){
   const c = customers.find(x=>x.id===id);
@@ -663,6 +782,7 @@ async function deleteCustomerRecord(id){
   if(error){ toast('Delete failed: ' + error.message); return; }
   customers = customers.filter(x=>x.id!==id);
   customerRoutes = customerRoutes.filter(r=>r.customerId!==id);
+  customerSoNumbers = customerSoNumbers.filter(s=>s.customerId!==id);
   renderCustomerDirectory();
   toast('Customer removed from directory');
 }
@@ -740,15 +860,16 @@ function updateDayTotal(){
 function onCustomerInput(){
   const box = document.getElementById('customerSuggest');
   const q = document.getElementById('f_customer').value.trim().toLowerCase();
-  hideRouteSuggest();
+  hideRouteSuggest(); hideSoSuggest();
   if(!q){ box.classList.remove('show'); box.innerHTML=''; return; }
   const matches = customers.filter(c=> c.name.toLowerCase().includes(q)).slice(0,8);
   if(matches.length===0){ box.classList.remove('show'); box.innerHTML=''; return; }
   box.innerHTML = matches.map(c=>{
+    const soCount = customerSoNumbers.filter(s=>s.customerId===c.id).length;
     const routeCount = customerRoutes.filter(r=>r.customerId===c.id).length;
     return `<div class="suggest-item" onmousedown="selectCustomerSuggestion('${c.id}')">
       <div class="main">${escapeHtml(c.name)}</div>
-      <div class="sub">${c.soNumber? 'SO '+escapeHtml(c.soNumber)+' · ':''}${routeCount} saved route${routeCount===1?'':'s'}</div>
+      <div class="sub">${soCount} SO number${soCount===1?'':'s'} · ${routeCount} saved route${routeCount===1?'':'s'}</div>
     </div>`;
   }).join('');
   box.classList.add('show');
@@ -761,11 +882,36 @@ function selectCustomerSuggestion(customerId){
   const c = customers.find(x=>x.id===customerId);
   if(!c) return;
   document.getElementById('f_customer').value = c.name;
-  document.getElementById('f_so_number').value = c.soNumber||'';
   hideCustomerSuggest();
+
+  const soNumbers = customerSoNumbers.filter(s=>s.customerId===customerId);
+  if(soNumbers.length===1){ document.getElementById('f_so_number').value = soNumbers[0].soNumber; }
+  else if(soNumbers.length>1){ showSoNumberSuggestions(soNumbers); }
+  else { document.getElementById('f_so_number').value = ''; }
+
   const routes = customerRoutes.filter(r=>r.customerId===customerId);
   if(routes.length===1){ applyRouteToLastLeg(routes[0]); }
   else if(routes.length>1){ showRouteSuggestions(routes); }
+}
+function showSoNumberSuggestions(soNumbers){
+  const box = document.getElementById('soSuggest');
+  box.innerHTML = soNumbers.map((s,i)=>`
+    <div class="suggest-item" onmousedown="applySoNumberByIndex(${i})">
+      <div class="main">SO ${escapeHtml(s.soNumber)}</div>
+      <div class="sub">${s.reference? escapeHtml(s.reference) : 'No reference'}</div>
+    </div>`).join('');
+  box.classList.add('show');
+  window.__pendingSoChoices = soNumbers;
+}
+function applySoNumberByIndex(i){
+  const list = window.__pendingSoChoices||[];
+  if(list[i]) document.getElementById('f_so_number').value = list[i].soNumber;
+  hideSoSuggest();
+}
+function hideSoSuggest(){
+  const box = document.getElementById('soSuggest');
+  box.classList.remove('show'); box.innerHTML='';
+  window.__pendingSoChoices = null;
 }
 function showRouteSuggestions(routes){
   const box = document.getElementById('routeSuggest');
@@ -810,6 +956,7 @@ function resetEntryForm(){
   document.getElementById('f_tag').value = '';
   hideCustomerSuggest();
   hideRouteSuggest();
+  hideSoSuggest();
   document.querySelectorAll('.field-error').forEach(el=>el.classList.remove('field-error'));
   currentLegs = [blankLeg()];
   pendingFiles = [];
@@ -871,43 +1018,10 @@ function removePendingFile(i){ pendingFiles.splice(i,1); renderPendingChips(); }
 async function syncCustomerAndRoutes(customerName, soNumber, legs){
   if(!customerName) return;
   try{
-    let cust = customers.find(c=>c.name.toLowerCase()===customerName.toLowerCase());
-    if(!cust){
-      const newCust = { id: uid('c'), name: customerName, so_number: soNumber||null };
-      const { error } = await sb.from('customers').insert(newCust);
-      if(error){ console.error(error); return; }
-      cust = { id:newCust.id, name:customerName, soNumber:soNumber||'' };
-      customers.push(cust);
-    } else if(soNumber && soNumber !== cust.soNumber){
-      const { error } = await sb.from('customers').update({ so_number: soNumber }).eq('id', cust.id);
-      if(!error) cust.soNumber = soNumber;
-    }
-
-    for(const leg of legs){
-      if(!leg.from && !leg.to) continue;
-      const existing = customerRoutes.find(r=> r.customerId===cust.id &&
-        (r.from||'').toLowerCase()===(leg.from||'').toLowerCase() &&
-        (r.to||'').toLowerCase()===(leg.to||'').toLowerCase() &&
-        (r.mode||'')===(leg.mode||''));
-      const routeFields = {
-        from_location: leg.from||'', to_location: leg.to||'', mode: leg.mode||'',
-        distance: String(leg.distance||''), rate: String(leg.rate||''), amount: String(leg.amount||'')
-      };
-      if(existing){
-        const { error } = await sb.from('customer_routes').update(routeFields).eq('id', existing.id);
-        if(!error){
-          existing.from=routeFields.from_location; existing.to=routeFields.to_location; existing.mode=routeFields.mode;
-          existing.distance=routeFields.distance; existing.rate=routeFields.rate; existing.amount=routeFields.amount;
-        }
-      } else {
-        const newRoute = { id: uid('rt'), customer_id: cust.id, ...routeFields };
-        const { error } = await sb.from('customer_routes').insert(newRoute);
-        if(!error) customerRoutes.push({
-          id:newRoute.id, customerId:cust.id, from:routeFields.from_location, to:routeFields.to_location,
-          mode:routeFields.mode, distance:routeFields.distance, rate:routeFields.rate, amount:routeFields.amount
-        });
-      }
-    }
+    const cust = await ensureCustomer(customerName);
+    if(!cust) return;
+    if(soNumber) await ensureSoNumber(cust.id, soNumber, null);
+    for(const leg of legs){ await ensureRoute(cust.id, leg); }
   }catch(e){ console.error('customer/route sync failed', e); }
 }
 
@@ -1115,15 +1229,38 @@ function renderMonth(){
     const dayTotal = e.legs.reduce((s,l)=>s+(parseFloat(l.amount)||0),0);
     const evCount = evidence.filter(ev=>ev.entryId===e.id).length;
     return `<div class="entry-row">
-      <div><strong>${fmtDate(e.date)}</strong> — ${e.customerName? escapeHtml(e.customerName):'—'} <span class="meta">(${e.legs.length} leg${e.legs.length>1?'s':''})</span></div>
+      <div><strong>${fmtDate(e.date)}</strong> — ${e.customerName? escapeHtml(e.customerName):'—'}${e.soNumber? ` <span class="meta">SO ${escapeHtml(e.soNumber)}</span>`:''} <span class="meta">(${e.legs.length} leg${e.legs.length>1?'s':''})</span></div>
       <div style="display:flex;align-items:center;gap:10px">
         <span class="badge">₹${money(dayTotal)}</span>
         ${evCount? `<span class="badge">${evCount} file${evCount>1?'s':''}</span>`:''}
+        ${!e.soNumber && e.customerName? `<button class="btn ghost small" onclick="quickSetEntrySoNumber('${e.id}')">+ Add SO</button>`:''}
         <button class="btn ghost small" onclick="editEntry('${e.id}')">Edit</button>
         <button class="btn danger small" onclick="deleteEntry('${e.id}')">Delete</button>
       </div>
     </div>`;
   }).join('');
+}
+
+async function quickSetEntrySoNumber(entryId){
+  const e = entries.find(x=>x.id===entryId);
+  if(!e) return;
+  const cust = customers.find(c=>c.name.toLowerCase()===(e.customerName||'').toLowerCase());
+  const known = cust? customerSoNumbers.filter(s=>s.customerId===cust.id) : [];
+  let soNumber;
+  if(known.length===1){
+    soNumber = known[0].soNumber;
+  } else {
+    const hint = known.length? ` Known for ${e.customerName}: ${known.map(s=>s.soNumber).join(', ')}` : '';
+    soNumber = prompt(`SO Number for this entry.${hint}`, known[0]? known[0].soNumber : '');
+    if(soNumber===null) return;
+  }
+  if(!soNumber || !soNumber.trim()) return;
+  const { error } = await sb.from('entries').update({ so_number: soNumber.trim() }).eq('id', entryId);
+  if(error){ toast('Could not save: ' + error.message); return; }
+  e.soNumber = soNumber.trim();
+  if(cust) await ensureSoNumber(cust.id, soNumber.trim(), null);
+  renderMonth();
+  toast('SO Number added');
 }
 
 /* ---------------- dashboard ---------------- */
