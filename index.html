@@ -1538,16 +1538,18 @@ async function exportPolishedExcel(){
       if(value !== null && value !== undefined) c.value = value;
       c.font = { name:FONT, size: opts.size||11, bold: !!opts.bold,
                  color: opts.color?{argb:opts.color}:undefined, underline: !!opts.underline };
-      c.alignment = { horizontal: opts.h, vertical: opts.v, wrapText: !!opts.wrap };
+      // Middle-aligned vertically and word-wrapped everywhere by default —
+      // pass opts.v / opts.wrap:false to override on a specific cell.
+      c.alignment = { horizontal: opts.h, vertical: opts.v||'middle', wrapText: opts.wrap!==false };
       return c;
     }
 
     ws.mergeCells('A1:L1'); setCell('A1','LRS Services Pvt. Ltd.',{bold:true,h:'center'});
     ws.mergeCells('A2:L2'); setCell('A2','Address:-'+(profile.address? ' '+profile.address:''),{bold:true});
     ws.mergeCells('A3:L3'); setCell('A3','LOCAL CONVEYANCE CLAIM FORM',{bold:true,h:'center'});
-    ws.mergeCells('A4:B4'); setCell('A4','S.No.',{bold:true,h:'center'});
-    ws.mergeCells('C4:D4'); setCell('C4','Description',{bold:true});
-    ws.mergeCells('E4:L4');
+    setCell('A4','S.No.',{bold:true,h:'center'});
+    ws.mergeCells('B4:C4'); setCell('B4','Description',{bold:true,h:'left'});
+    ws.mergeCells('D4:L4');
 
     const labels = [
       [5,1,'Name of Employee:', profile.name||''],
@@ -1557,9 +1559,9 @@ async function exportPolishedExcel(){
       [9,5,'Project:', profile.project||'']
     ];
     labels.forEach(([row,num,label,value])=>{
-      ws.mergeCells(`A${row}:B${row}`); setCell(`A${row}`, num, {bold:true,h:'center'});
-      ws.mergeCells(`C${row}:D${row}`); setCell(`C${row}`, label, {bold:true});
-      ws.mergeCells(`E${row}:L${row}`); setCell(`E${row}`, value, {bold:true});
+      setCell(`A${row}`, num, {bold:true,h:'center'});
+      ws.mergeCells(`B${row}:C${row}`); setCell(`B${row}`, label, {bold:true,h:'left'});
+      ws.mergeCells(`D${row}:L${row}`); setCell(`D${row}`, value, {bold:true,h:'left'});
     });
 
     ws.mergeCells('A10:L10'); setCell('A10','DETAILS OF THE LOCAL CONVEYANCE CLAIMS',{bold:true,h:'center'});
@@ -1602,8 +1604,8 @@ async function exportPolishedExcel(){
 
     [4,5,6,7,8,9].forEach(row=>{
       ws.getCell(`A${row}`).border = borderBox('thin','thin','medium','thin');
-      ws.getCell(`C${row}`).border = borderBox('thin','thin','thin','thin');
-      ws.getCell(`E${row}`).border = borderBox('thin','thin','thin','medium');
+      ws.getCell(`B${row}`).border = borderBox('thin','thin','thin','thin');
+      ws.getCell(`D${row}`).border = borderBox('thin','thin','thin','medium');
     });
 
     // Rows 10-12 as one section: thick border around the OUTSIDE only (top
@@ -1659,7 +1661,7 @@ async function exportPolishedExcel(){
       const kcell = ws.getCell(`L${startRow}`);
       kcell.value = { formula:`SUM(K${startRow}:K${endRow})`, result: dayTotal };
       kcell.font = { name:FONT, size:11 };
-      kcell.alignment = { horizontal:'center', vertical:'middle' };
+      kcell.alignment = { horizontal:'center', vertical:'middle', wrapText:true };
 
       // Blank separator row — still needs the outer left/right edge so the
       // table's single thick border stays unbroken all the way down.
@@ -1679,7 +1681,7 @@ async function exportPolishedExcel(){
     const ktot = ws.getCell(`L${totalRow}`);
     ktot.value = { formula:`SUM(L${totalFirstRow}:L${lastDataRow})`, result: grandTotal };
     ktot.font = { name:FONT, size:11, bold:true };
-    ktot.alignment = { horizontal:'center' };
+    ktot.alignment = { horizontal:'center', vertical:'middle', wrapText:true };
     // A:K is one merged block (the "Total :" label) and L is a separate
     // cell (the grand-total formula) — set each once, not looped per column
     // (see the merged-range note above the header borders).
@@ -1713,14 +1715,18 @@ async function exportPolishedExcel(){
       c.value = h;
       c.font = { name:FONT, size:11, bold:true };
       c.alignment = { horizontal:'center', vertical:'middle', wrapText:true };
-      c.border = borderBox('medium','medium','medium','medium');
+      // Outside of row 1 thick, internal column dividers normal — not every
+      // header cell individually boxed thick.
+      const left = i===0 ? 'medium' : 'thin';
+      const right = i===headers2.length-1 ? 'medium' : 'thin';
+      c.border = borderBox('medium','medium',left,right);
     });
-    const widths2 = [6,12,20,22,22,20,24,46,14,14];
+    const widths2 = [6,12,20,22,22,20,24,60,14,14];
     widths2.forEach((w,i)=> ws2.getColumn(i+1).width = w);
     ws2.getRow(1).height = 30;
 
     const PHOTO_COL = 8;
-    const PHOTO_ROW_HEIGHT = 260;
+    const PHOTO_ROW_HEIGHT = 340;
     const boxPxW = Math.round(widths2[PHOTO_COL-1]*7) - 6;
     const boxPxH = Math.round(PHOTO_ROW_HEIGHT*1.333) - 6;
 
