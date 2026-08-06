@@ -87,6 +87,8 @@
   .empty{color:var(--muted);font-style:italic;padding:20px;text-align:center;}
   .toast{position:fixed;bottom:18px;right:18px;background:var(--navy);color:#fff;padding:10px 16px;border-radius:6px;font-size:13px;opacity:0;transform:translateY(8px);transition:.25s;pointer-events:none;z-index:50;max-width:280px;}
   .toast.show{opacity:1;transform:translateY(0);}
+  .idle-warning{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-14px);background:var(--warn);color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;display:none;align-items:center;gap:14px;z-index:300;box-shadow:0 6px 18px rgba(0,0,0,.2);opacity:0;transition:opacity .2s,transform .2s;max-width:90vw;}
+  .idle-warning.show{display:flex;opacity:1;transform:translateX(-50%) translateY(0);}
   .note{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5;}
   .ev-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
   .ev-card{border:1px solid var(--line);border-radius:8px;padding:10px;background:#fff;}
@@ -178,6 +180,11 @@
       <h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg> Month-by-month</h2>
       <div class="note">Once you've received reimbursement for a month, you can permanently delete that month's data here to free up storage space. This cannot be undone, so keep a copy first if in doubt.</div>
       <div id="monthsTableWrap"></div>
+    </div>
+    <div class="card">
+      <h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg> Totals by customer &amp; SO Number</h2>
+      <div class="note">All-time, across every month — highest total first.</div>
+      <div id="customerTotalsWrap"></div>
     </div>
   </div>
 
@@ -329,6 +336,10 @@
 
 </div>
 <div class="toast" id="toast"></div>
+<div class="idle-warning" id="idleWarning">
+  <span>You'll be signed out in <strong id="idleCountdown">30</strong>s due to inactivity — any unsaved entry will be lost.</span>
+  <button type="button" class="btn small" style="background:#fff;color:var(--warn);border-color:#fff" onclick="resetIdleTimer()">Stay signed in</button>
+</div>
 
 <div class="modal-overlay" id="evidenceModal" onclick="if(event.target===this) closeEvidenceModal()">
   <div class="modal-box">
@@ -402,11 +413,17 @@ checkExistingSession();
 
 /* ---------------- auto sign-out after 5 minutes idle ---------------- */
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const IDLE_WARNING_MS = 30 * 1000; // shown for the last 30s before sign-out
 const IDLE_EVENTS = ['mousemove','mousedown','keydown','scroll','touchstart','click'];
 let idleTimer = null;
+let idleWarnTimer = null;
+let idleCountdownInterval = null;
 
 function resetIdleTimer(){
   clearTimeout(idleTimer);
+  clearTimeout(idleWarnTimer);
+  hideIdleWarning();
+  idleWarnTimer = setTimeout(showIdleWarning, IDLE_TIMEOUT_MS - IDLE_WARNING_MS);
   idleTimer = setTimeout(autoSignOutIdle, IDLE_TIMEOUT_MS);
 }
 function startIdleWatch(){
@@ -415,7 +432,28 @@ function startIdleWatch(){
 }
 function stopIdleWatch(){
   clearTimeout(idleTimer);
+  clearTimeout(idleWarnTimer);
+  hideIdleWarning();
   IDLE_EVENTS.forEach(ev => document.removeEventListener(ev, resetIdleTimer));
+}
+function showIdleWarning(){
+  const el = document.getElementById('idleWarning');
+  const countEl = document.getElementById('idleCountdown');
+  if(!el || !countEl) return;
+  let remaining = Math.round(IDLE_WARNING_MS/1000);
+  countEl.textContent = remaining;
+  el.classList.add('show');
+  clearInterval(idleCountdownInterval);
+  idleCountdownInterval = setInterval(()=>{
+    remaining -= 1;
+    if(remaining>0) countEl.textContent = remaining;
+    else clearInterval(idleCountdownInterval);
+  }, 1000);
+}
+function hideIdleWarning(){
+  const el = document.getElementById('idleWarning');
+  if(el) el.classList.remove('show');
+  clearInterval(idleCountdownInterval);
 }
 async function autoSignOutIdle(){
   stopIdleWatch();
@@ -1411,6 +1449,8 @@ function renderDashboard(){
   document.getElementById('statEntries').textContent = entries.length;
   document.getElementById('statFiles').textContent = evidence.length;
 
+  renderCustomerTotals();
+
   const byMonth = {};
   entries.forEach(e=>{
     const key = e.date.slice(0,7);
@@ -1439,6 +1479,40 @@ function renderDashboard(){
       <td class="num">₹${money(byMonth[k].total)}</td>
       <td class="num">${fileCount}</td>
       <td><button class="btn danger small" onclick="deleteMonthData('${k}','${label}')">${icon('trash',12)} Delete month</button></td>
+    </tr>`;
+  }).join('')}
+  </tbody></table></div>`;
+}
+
+function renderCustomerTotals(){
+  const wrap = document.getElementById('customerTotalsWrap');
+  if(!wrap) return;
+  const groups = {};
+  entries.forEach(e=>{
+    const total = e.legs.reduce((s,l)=>s+(parseFloat(l.amount)||0),0);
+    const key = (e.customerName||'—') + '|' + (e.soNumber||'');
+    if(!groups[key]) groups[key] = { customer: e.customerName||'—', soNumber: e.soNumber||'', total:0, count:0 };
+    groups[key].total += total;
+    groups[key].count += 1;
+  });
+  const rows = Object.values(groups).sort((a,b)=> b.total - a.total);
+  if(rows.length===0){ wrap.innerHTML = '<div class="empty">No data yet.</div>'; return; }
+
+  wrap.innerHTML = `<div class="table-scroll"><table class="months"><thead><tr>
+    <th>Customer</th><th>SO Number</th><th>Entries</th><th>Total</th>
+  </tr></thead><tbody>
+  ${rows.map(r=>{
+    let soLabel = '—';
+    if(r.soNumber){
+      const cust = customers.find(c=>c.name.toLowerCase()===r.customer.toLowerCase());
+      const so = cust? customerSoNumbers.find(s=>s.customerId===cust.id && s.soNumber===r.soNumber) : null;
+      soLabel = escapeHtml(r.soNumber) + (so && so.reference? ' ('+escapeHtml(so.reference)+')' : '');
+    }
+    return `<tr>
+      <td>${escapeHtml(r.customer)}</td>
+      <td>${soLabel}</td>
+      <td>${r.count}</td>
+      <td class="num">₹${money(r.total)}</td>
     </tr>`;
   }).join('')}
   </tbody></table></div>`;

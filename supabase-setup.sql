@@ -112,21 +112,21 @@ drop policy if exists "auth only - customer_routes" on customer_routes;
 drop policy if exists "auth only - customer_so_numbers" on customer_so_numbers;
 
 create policy "auth only - entries" on entries
-  for all using (auth.uid() is not null) with check (auth.uid() is not null);
+  for all using ((select auth.uid()) is not null) with check ((select auth.uid()) is not null);
 create policy "auth only - evidence" on evidence
-  for all using (auth.uid() is not null) with check (auth.uid() is not null);
+  for all using ((select auth.uid()) is not null) with check ((select auth.uid()) is not null);
 create policy "auth only - profile" on profile
-  for all using (auth.uid() is not null) with check (auth.uid() is not null);
+  for all using ((select auth.uid()) is not null) with check ((select auth.uid()) is not null);
 create policy "auth only insert - client_errors" on client_errors
-  for insert with check (auth.uid() is not null);
+  for insert with check ((select auth.uid()) is not null);
 create policy "auth only select - client_errors" on client_errors
-  for select using (auth.uid() is not null);
+  for select using ((select auth.uid()) is not null);
 create policy "auth only - customers" on customers
-  for all using (auth.uid() is not null) with check (auth.uid() is not null);
+  for all using ((select auth.uid()) is not null) with check ((select auth.uid()) is not null);
 create policy "auth only - customer_routes" on customer_routes
-  for all using (auth.uid() is not null) with check (auth.uid() is not null);
+  for all using ((select auth.uid()) is not null) with check ((select auth.uid()) is not null);
 create policy "auth only - customer_so_numbers" on customer_so_numbers
-  for all using (auth.uid() is not null) with check (auth.uid() is not null);
+  for all using ((select auth.uid()) is not null) with check ((select auth.uid()) is not null);
 
 -- Table grants: "authenticated" only. RLS above already blocks "anon" from
 -- reading/writing any row, so this doesn't change what's reachable today —
