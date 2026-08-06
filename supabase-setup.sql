@@ -166,15 +166,20 @@ create policy "evidence delete" on storage.objects
 
 -- ---------------- usage stats (DB / Storage size shown in the app header) ----------------
 -- Neither figure is reachable through the normal table API, so these are
--- exposed as RPC functions instead. Both are security definer (so they can
--- read Postgres' own catalogs / storage.objects regardless of the calling
--- role's exact table grants) but gate on auth.uid() themselves and are only
--- granted to "authenticated" — an anonymous caller gets null back.
+-- exposed as RPC functions instead. security invoker (not definer): each
+-- runs with the CALLING role's own privileges, so an anonymous caller hits
+-- the same RLS wall as everywhere else in the app rather than relying on
+-- the internal auth.uid() check as the only safety net. Supabase's
+-- Security Advisor flags security definer functions reachable by "anon" —
+-- this removes that flag at the root instead of just gating around it.
+-- Execute is granted to "authenticated" only; the authenticated-can-call
+-- warning the Advisor also raises is expected here — the app needs a
+-- signed-in session to read these, matching the rest of the app.
 
 create or replace function get_db_size_bytes()
 returns bigint
 language sql
-security definer
+security invoker
 set search_path = public
 as $$
   select case when auth.uid() is not null then pg_database_size(current_database()) else null end;
@@ -183,7 +188,7 @@ $$;
 create or replace function get_storage_size_bytes()
 returns bigint
 language sql
-security definer
+security invoker
 set search_path = public
 as $$
   select case when auth.uid() is not null
@@ -193,6 +198,8 @@ $$;
 
 revoke all on function get_db_size_bytes() from public;
 revoke all on function get_storage_size_bytes() from public;
+revoke all on function get_db_size_bytes() from anon;
+revoke all on function get_storage_size_bytes() from anon;
 grant execute on function get_db_size_bytes() to authenticated;
 grant execute on function get_storage_size_bytes() to authenticated;
 
