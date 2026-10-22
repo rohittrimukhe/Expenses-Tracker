@@ -89,6 +89,22 @@ where c.so_number is not null and c.so_number <> ''
     select 1 from customer_so_numbers s where s.customer_id = c.id and s.so_number = c.so_number
   );
 
+-- Routes that apply regardless of which customer is selected — e.g. the
+-- commute from home to the nearest station, which is the same every day
+-- no matter who you're visiting. Separate from customer_routes, which are
+-- tied to a specific customer. No seed rows here by design — add your own
+-- from the app (Settings -> Common Routes), since they're personal to you.
+create table if not exists common_routes (
+  id text primary key,
+  from_location text,
+  to_location text,
+  mode text,
+  distance text,
+  rate text,
+  amount text,
+  created_at timestamptz default now()
+);
+
 -- ---------------- row level security ----------------
 -- auth.uid() is only non-null for a signed-in session, and Postgres checks
 -- this on every request — it can't be bypassed by calling the API directly
@@ -101,6 +117,7 @@ alter table client_errors enable row level security;
 alter table customers enable row level security;
 alter table customer_routes enable row level security;
 alter table customer_so_numbers enable row level security;
+alter table common_routes enable row level security;
 
 drop policy if exists "auth only - entries" on entries;
 drop policy if exists "auth only - evidence" on evidence;
@@ -110,6 +127,7 @@ drop policy if exists "auth only select - client_errors" on client_errors;
 drop policy if exists "auth only - customers" on customers;
 drop policy if exists "auth only - customer_routes" on customer_routes;
 drop policy if exists "auth only - customer_so_numbers" on customer_so_numbers;
+drop policy if exists "auth only - common_routes" on common_routes;
 
 create policy "auth only - entries" on entries
   for all using ((select auth.uid()) is not null) with check ((select auth.uid()) is not null);
@@ -127,6 +145,8 @@ create policy "auth only - customer_routes" on customer_routes
   for all using ((select auth.uid()) is not null) with check ((select auth.uid()) is not null);
 create policy "auth only - customer_so_numbers" on customer_so_numbers
   for all using ((select auth.uid()) is not null) with check ((select auth.uid()) is not null);
+create policy "auth only - common_routes" on common_routes
+  for all using ((select auth.uid()) is not null) with check ((select auth.uid()) is not null);
 
 -- Table grants: "authenticated" only. RLS above already blocks "anon" from
 -- reading/writing any row, so this doesn't change what's reachable today —
@@ -142,6 +162,8 @@ grant select, insert on client_errors to authenticated;
 grant all on customers to authenticated;
 grant all on customer_routes to authenticated;
 grant all on customer_so_numbers to authenticated;
+grant all on common_routes to authenticated;
+revoke all on common_routes from anon;
 
 -- ---------------- storage policies for the "evidence" bucket ----------------
 -- Fetching a file you already have the URL for works regardless of this
