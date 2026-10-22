@@ -34,8 +34,9 @@ This repo is currently **public**. The encrypted-backup setup below stores backu
 - **`supabase-setup.sql`:** grants table access to the `authenticated` role only (RLS already blocked `anon` in practice; this removes the redundant grant as defense-in-depth) and creates a `client_errors` table so unexpected JS errors are logged somewhere durable instead of only the browser console.
 - **`supabase-setup.sql`:** the `evidence read` storage policy now requires a signed-in session. Downloading a file you already have the URL for is unaffected (that's governed by the bucket's own "Public" flag, not this policy) — this closes off *listing* the bucket's full contents, which was previously open to anonymous requests via Storage's `list()` API and flagged by Supabase's Security Advisor.
 - **`supabase-setup.sql`:** the `get_db_size_bytes`/`get_storage_size_bytes` RPC functions (backing the DB/Storage usage line in the header) switched from `security definer` to `security invoker`, flagged by Supabase's Security Advisor as callable by the `anon` role. They now run with the calling role's own privileges instead of an elevated bypass, so an anonymous caller hits the same RLS wall as everywhere else in the app rather than relying only on the function's internal `auth.uid()` check.
-- **Accepted, not changed:** the Advisor's "authenticated can execute" warning on those same two functions is expected — the app needs a signed-in session to read them, same as every other feature. Leaked-password-protection is a paid-tier-only Supabase feature; not applicable on the free tier.
-- **Not changed:** the evidence storage bucket stays public (by your call — it only holds receipts/travel evidence). Per-row data ownership (`user_id` column) wasn't added since there's exactly one login account today; add it before ever creating a second account, not after.
+- **Accepted, not changed:** the Advisor's "authenticated can execute" warning on those same two functions, and on `list_users_for_admin()` below, is expected — each needs a signed-in session to read, same as every other feature; the sensitive one (`list_users_for_admin`) is internally gated by `is_admin()` regardless. Leaked-password-protection is a paid-tier-only Supabase feature; not applicable on the free tier.
+- **Not changed:** the evidence storage bucket stays public (by your call — it only holds receipts/travel evidence).
+- **Multi-user support (added):** every per-user table (`entries`, `evidence`, `profile`, `customers`, `customer_routes`, `customer_so_numbers`, `common_routes`, `client_errors`) now carries a `user_id` column, and RLS requires `user_id = auth.uid() or is_admin()` — one account (hardcoded by UUID inside `is_admin()`, currently `rohittrimukhe2@gmail.com`) can read and write every account's data; everyone else only ever sees their own. Evidence Storage paths are prefixed with the owning user's UUID and the bucket's storage policies check that prefix the same way, so the isolation holds even if someone calls Storage's `list()` API directly, not just through the "evidence" table. See "Multi-user accounts" below.
 
 ## Backups
 
@@ -75,7 +76,62 @@ This extracts a `data/` folder (`entries.json`, `evidence.json`, `profile.json`)
 - Live URL: your GitHub Pages URL (`https://rohittrimukhe.github.io/<repo>/`)
 - Backend project: configured in the `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY`
   constants near the top of `index.html`'s `<script>` block
-- Login: the one account created in Supabase → Authentication → Users
+- Login: created in Supabase → Authentication → Users (see "Multi-user accounts" below)
+
+## Multi-user accounts
+
+- **Admin:** `rohittrimukhe2@gmail.com` — full read/write access to every
+  account's entries, evidence, and directories, plus the only account that
+  can see the user list. This is enforced by `is_admin()` in
+  `supabase-setup.sql`, which hardcodes that account's UUID; it isn't a flag
+  stored in a table, so there's nothing for another user to tamper with.
+- **Adding a user (in-app):** Settings → Users → fill in their email (and
+  optionally name/code/grade/location/project) → "Create user". The app
+  calls the `admin-create-user` Edge Function (see "Edge Functions" below),
+  which auto-generates a random temporary password and shows it once on
+  screen — share it with the new user however you like (there's no email
+  sending set up, so this is manual: WhatsApp, SMS, in person, etc.). It is
+  never shown again after that, and never logged anywhere.
+- **Adding a user (fallback):** Supabase Dashboard → Authentication → Users
+  → Add user also still works, same as before — useful if the Edge Function
+  is ever unavailable. A user created this way has no forced password reset,
+  so only use the in-app flow when you want that behavior.
+- **First sign-in:** a user created via the in-app flow is served a
+  mandatory "Set your password" screen before they can reach the dashboard —
+  their temporary password stops working the moment they do. Right after
+  that, they land on the Employee Details tab with a reminder to review or
+  fill in anything you didn't already set for them (name, code, grade,
+  location, project, address) — this isn't a hard gate, just where they're
+  dropped so nothing gets missed.
+- **Isolation:** a non-admin user's database queries are filtered by Postgres
+  itself (RLS `user_id = auth.uid()`), not just by the app's UI — calling the
+  API directly with another account's ID returns nothing. The customer/route
+  directory and common routes are private per account, not shared. A
+  non-admin user never sees the Users card at all, has no way to list other
+  accounts, and cannot call `admin-create-user` (it independently re-checks
+  `is_admin()` against their own forwarded token server-side — the UI being
+  hidden is not what actually enforces this).
+- **Viewing as another user (admin only):** Settings → Users → "Viewing as"
+  dropdown. While viewing someone else's account, an orange banner shows at
+  the top of every tab and a "Return to my account" button switches back.
+  Entries saved or evidence uploaded while viewing as someone else are saved
+  to *their* account, not the admin's.
+
+## Edge Functions
+
+- **`admin-create-user`** (`supabase/functions/admin-create-user/index.ts`):
+  the only place the Supabase `service_role` key is used anywhere in this
+  project. It runs on Supabase's servers, not in the browser, so that key
+  never reaches a client. Before doing anything privileged it independently
+  verifies the caller is signed in *and* that `is_admin()` is true for their
+  own forwarded token — the request body's content is never trusted for
+  identity. Deployed with `verify_jwt: true`, so Supabase's edge runtime
+  rejects any request with no valid JWT at all before the function's own
+  code even runs. Redeploy after editing: `supabase functions deploy
+  admin-create-user` (Supabase CLI) or via the Dashboard's Edge Functions
+  editor — no secrets to configure, since `SUPABASE_URL`,
+  `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are injected
+  automatically into every Edge Function's environment.
 
 ## Routine maintenance
 
@@ -98,9 +154,6 @@ This extracts a `data/` folder (`entries.json`, `evidence.json`, `profile.json`)
 - Two-factor authentication (TOTP) on the login account
 - Fully private evidence files via signed, expiring URLs instead of a public
   bucket (currently public by deliberate choice — receipts only, no other PII)
-- Multiple user accounts with individual permissions — needs a `user_id`
-  ownership column + updated RLS policies added *before* a second account is
-  created, not after
 - More visible handling of partial-failure saves (an entry can save
   successfully while one of its evidence uploads fails, with only a toast
   notification) — not changed in this pass since it alters the save flow's

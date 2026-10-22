@@ -148,7 +148,26 @@
   </div>
 </div>
 
+<div class="lock-screen" id="forcePasswordScreen" style="display:none">
+  <div class="lock-box">
+    <div class="co" style="text-align:center;margin-bottom:2px">LRS Services Pvt. Ltd.</div>
+    <h2>Set your password</h2>
+    <div class="note" style="margin-bottom:10px">This is your first sign-in. Choose your own password to continue — your temporary one won't work again after this.</div>
+    <form id="forcePasswordForm" onsubmit="submitForcedPassword(); return false;">
+      <input type="password" id="fp_new" placeholder="New password" autocomplete="new-password" style="margin-bottom:10px">
+      <input type="password" id="fp_confirm" placeholder="Confirm new password" autocomplete="new-password" style="margin-bottom:10px">
+      <button class="btn" style="width:100%" type="submit">Set password &amp; continue</button>
+    </form>
+    <div class="note" id="forcePasswordNote">&nbsp;</div>
+  </div>
+</div>
+
 <div class="app" id="appRoot" style="display:none">
+
+  <div id="viewingAsBanner" style="display:none;background:#fff4e5;border:1px solid #e8b86d;border-radius:8px;padding:8px 12px;margin-bottom:12px;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:#7a5215">
+    <span></span>
+    <button type="button" class="btn secondary small" onclick="switchViewingAs(currentUserId)">Return to my account</button>
+  </div>
 
   <div class="topbar">
     <div class="brand">
@@ -336,6 +355,30 @@
       <button type="button" class="btn secondary small" style="margin-top:8px" onclick="addCommonRoute()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Add common route</button>
     </div>
 
+    <div class="card" id="usersCard" style="display:none">
+      <h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2.5 20c0-3.5 2.5-6 5.5-6s5.5 2.5 5.5 6"/><path d="M14.5 15c2.3.3 4 2.2 4 5"/></svg> Users (admin only)</h2>
+      <div class="note">You're signed in as the admin — full read/write access to every account. Each user's dashboard is private to them alone; they never see your data, the user list, or anyone else's account.</div>
+      <div class="field" style="max-width:320px;margin-top:10px">
+        <label>Viewing as</label>
+        <select id="viewingAsSelect" onchange="switchViewingAs(this.value)"></select>
+      </div>
+      <div class="chip-list" id="usersList" style="margin-top:10px"></div>
+
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+        <div class="note" style="margin-top:0">Add a new user — a temporary password is generated automatically. Share the email + temporary password with them any way you like (they're shown once below, right after creation); they'll be required to set their own password the first time they sign in, and can fill in or correct any details below at that point.</div>
+        <div class="grid" style="margin-top:10px">
+          <div class="field"><label class="required">Email</label><input type="email" id="nu_email" placeholder="person@example.com"></div>
+          <div class="field"><label>Name</label><input type="text" id="nu_name" placeholder="Employee name"></div>
+          <div class="field"><label>Employee Code</label><input type="text" id="nu_code"></div>
+          <div class="field"><label>Grade</label><input type="text" id="nu_grade"></div>
+          <div class="field"><label>Location</label><input type="text" id="nu_location"></div>
+          <div class="field"><label>Default Project</label><input type="text" id="nu_project"></div>
+        </div>
+        <button type="button" class="btn secondary small" id="nu_submitBtn" onclick="adminCreateUser()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Create user</button>
+        <div id="nu_result" style="margin-top:10px"></div>
+      </div>
+    </div>
+
     <div class="card">
       <h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Change password</h2>
       <div class="grid">
@@ -383,7 +426,8 @@ function logClientError(message, source){
       message: String(message||'').slice(0,2000),
       source: source||'unknown',
       url: location.href,
-      user_agent: navigator.userAgent
+      user_agent: navigator.userAgent,
+      user_id: currentUserId
     }).then(()=>{}, ()=>{});
   }catch(e){ /* logging must never itself break the app */ }
 }
@@ -391,6 +435,20 @@ window.addEventListener('error', (e)=> logClientError(e.message, 'window.onerror
 window.addEventListener('unhandledrejection', (e)=> logClientError(e.reason && e.reason.message || e.reason, 'unhandledrejection'));
 
 /* ---------------- sign-in (real Supabase Auth — enforced by the database, not just this page) ---------------- */
+async function enterApp(){
+  const { data: userData } = await sb.auth.getUser();
+  if(userData && userData.user && userData.user.user_metadata && userData.user.user_metadata.must_change_password){
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('appRoot').style.display = 'none';
+    document.getElementById('forcePasswordScreen').style.display = 'flex';
+    return;
+  }
+  document.getElementById('lockScreen').style.display = 'none';
+  document.getElementById('forcePasswordScreen').style.display = 'none';
+  document.getElementById('appRoot').style.display = 'block';
+  boot();
+}
+
 async function trySignIn(){
   const btn = document.querySelector('#lockScreen button');
   btn.disabled = true; btn.textContent = 'Signing in…';
@@ -403,9 +461,27 @@ async function trySignIn(){
     document.getElementById('lockNote').style.color = '#c0392b';
     return;
   }
-  document.getElementById('lockScreen').style.display = 'none';
+  await enterApp();
+}
+
+async function submitForcedPassword(){
+  const btn = document.querySelector('#forcePasswordScreen button');
+  const next = document.getElementById('fp_new').value;
+  const confirm2 = document.getElementById('fp_confirm').value;
+  const note = document.getElementById('forcePasswordNote');
+  if(!next || next.length < 6){ note.textContent = 'Use at least 6 characters'; note.style.color = '#c0392b'; return; }
+  if(next !== confirm2){ note.textContent = "Passwords don't match"; note.style.color = '#c0392b'; return; }
+  btn.disabled = true; btn.textContent = 'Setting password…';
+  const { error } = await sb.auth.updateUser({ password: next, data: { must_change_password: false } });
+  btn.disabled = false; btn.textContent = 'Set password & continue';
+  if(error){ note.textContent = error.message; note.style.color = '#c0392b'; return; }
+  document.getElementById('fp_new').value = ''; document.getElementById('fp_confirm').value = '';
+  document.getElementById('forcePasswordScreen').style.display = 'none';
   document.getElementById('appRoot').style.display = 'block';
-  boot();
+  await boot();
+  const profileTab = document.querySelector('.tab[data-tab="profile"]');
+  if(profileTab) profileTab.click();
+  toast('Password set — please review your employee details below');
 }
 
 async function signOut(){
@@ -418,9 +494,7 @@ async function signOut(){
 async function checkExistingSession(){
   const { data } = await sb.auth.getSession();
   if(data && data.session){
-    document.getElementById('lockScreen').style.display = 'none';
-    document.getElementById('appRoot').style.display = 'block';
-    boot();
+    await enterApp();
   }
 }
 checkExistingSession();
@@ -482,6 +556,11 @@ if(sessionStorage.getItem('idleSignedOut')){
 }
 
 /* ---------------- state ---------------- */
+const ADMIN_USER_ID = '2fd80b0e-3987-43e6-8669-d5d197876d14';
+let currentUserId = null;   // the signed-in account (whose login this is)
+let isAdmin = false;        // true only for ADMIN_USER_ID
+let viewingAsUserId = null; // whose data is currently loaded/edited — admin can switch this
+let allUsers = [];          // admin only: [{id,email}], via list_users_for_admin()
 let profile = {name:'Rohit Trimukhe', code:'LRS 813', grade:'', location:'Mumbai', project:'', address:'', customModes:[]};
 let entries = [];
 let evidence = [];
@@ -500,7 +579,7 @@ function allModes(){
   return [...base, ...custom, 'Other'];
 }
 function profileRow(){
-  return { id:1, name:profile.name||'', code:profile.code||'', grade:profile.grade||'', location:profile.location||'', project:profile.project||'', address:profile.address||'', custom_modes: profile.customModes||[] };
+  return { user_id: viewingAsUserId, name:profile.name||'', code:profile.code||'', grade:profile.grade||'', location:profile.location||'', project:profile.project||'', address:profile.address||'', custom_modes: profile.customModes||[] };
 }
 
 function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
@@ -583,10 +662,12 @@ async function loadUsageStats(){
 
 /* ---------------- Supabase data layer ---------------- */
 async function loadProfile(){
-  const { data, error } = await sb.from('profile').select('*').eq('id',1).maybeSingle();
+  const { data, error } = await sb.from('profile').select('*').eq('user_id', viewingAsUserId).maybeSingle();
   if(error){ setSync(false,'Profile load failed'); console.error(error); return; }
   if(data){
     profile = { name:data.name||'', code:data.code||'', grade:data.grade||'', location:data.location||'', project:data.project||'', address:data.address||'', customModes:data.custom_modes||[] };
+  } else {
+    profile = { name:'', code:'', grade:'', location:'', project:'', address:'', customModes:[] };
   }
   document.getElementById('p_name').value = profile.name||'';
   document.getElementById('p_code').value = profile.code||'';
@@ -634,7 +715,7 @@ async function saveProfile(){
     address: document.getElementById('p_address').value.trim(),
     customModes: profile.customModes || []
   };
-  const { error } = await sb.from('profile').upsert(profileRow());
+  const { error } = await sb.from('profile').upsert(profileRow(), { onConflict: 'user_id' });
   if(error){ toast('Could not save — ' + error.message); return; }
   document.getElementById('whoBox').innerHTML = `<strong>${escapeHtml(profile.name)}</strong> · ${escapeHtml(profile.code)}${profile.location? ' · '+escapeHtml(profile.location):''}`;
   toast('Employee details saved');
@@ -659,7 +740,7 @@ async function addCustomMode(){
   const exists = BASE_MODES.some(m=>m.toLowerCase()===val.toLowerCase()) || custom.some(m=>m.toLowerCase()===val.toLowerCase());
   if(exists){ toast('That mode already exists'); return; }
   profile.customModes = [...custom, val];
-  const { error } = await sb.from('profile').upsert(profileRow());
+  const { error } = await sb.from('profile').upsert(profileRow(), { onConflict: 'user_id' });
   if(error){ toast('Could not save — ' + error.message); profile.customModes = custom; return; }
   input.value = '';
   renderModeChips();
@@ -672,14 +753,14 @@ async function removeCustomMode(i){
   if(!confirm(`Remove "${removed}" from the mode list?`)) return;
   const next = custom.filter((_,idx)=>idx!==i);
   profile.customModes = next;
-  const { error } = await sb.from('profile').upsert(profileRow());
+  const { error } = await sb.from('profile').upsert(profileRow(), { onConflict: 'user_id' });
   if(error){ toast('Could not save — ' + error.message); profile.customModes = custom; return; }
   renderModeChips();
   toast('Mode removed');
 }
 
 async function loadEntries(){
-  const { data, error } = await sb.from('entries').select('*').order('date', {ascending:true});
+  const { data, error } = await sb.from('entries').select('*').eq('user_id', viewingAsUserId).order('date', {ascending:true});
   if(error){ setSync(false,'Entries load failed'); console.error(error); entries=[]; return; }
   entries = (data||[]).map(row=>({
     id: row.id, date: row.date, customerName: row.customer_name||'', soNumber: row.so_number||'', project: row.project||'', legs: row.legs||[]
@@ -687,7 +768,7 @@ async function loadEntries(){
 }
 
 async function loadEvidence(){
-  const { data, error } = await sb.from('evidence').select('*').order('uploaded_at', {ascending:false});
+  const { data, error } = await sb.from('evidence').select('*').eq('user_id', viewingAsUserId).order('uploaded_at', {ascending:false});
   if(error){ console.error(error); evidence=[]; return; }
   evidence = (data||[]).map(row=>{
     const { data: pub } = sb.storage.from(EVIDENCE_BUCKET).getPublicUrl(row.storage_path);
@@ -700,9 +781,9 @@ async function loadEvidence(){
 
 async function loadCustomerDirectory(){
   const [custRes, routeRes, soRes] = await Promise.all([
-    sb.from('customers').select('*').order('name', {ascending:true}),
-    sb.from('customer_routes').select('*'),
-    sb.from('customer_so_numbers').select('*')
+    sb.from('customers').select('*').eq('user_id', viewingAsUserId).order('name', {ascending:true}),
+    sb.from('customer_routes').select('*').eq('user_id', viewingAsUserId),
+    sb.from('customer_so_numbers').select('*').eq('user_id', viewingAsUserId)
   ]);
   if(custRes.error){ console.error(custRes.error); customers=[]; }
   else customers = (custRes.data||[]).map(row=>({ id:row.id, name:row.name||'' }));
@@ -718,7 +799,7 @@ async function loadCustomerDirectory(){
 }
 
 async function loadCommonRoutes(){
-  const { data, error } = await sb.from('common_routes').select('*')
+  const { data, error } = await sb.from('common_routes').select('*').eq('user_id', viewingAsUserId)
     .order('sort_order', {ascending:true, nullsFirst:false}).order('created_at', {ascending:true});
   if(error){ console.error(error); commonRoutes=[]; return; }
   commonRoutes = (data||[]).map(row=>({
@@ -754,7 +835,8 @@ async function addCommonRoute(){
   const amount = prompt('Amount (₹):'); if(amount===null) return;
   const row = {
     id: uid('cr'), from_location:from.trim(), to_location:to.trim(), mode:mode.trim(),
-    distance:distance.trim(), rate:rate.trim(), amount:amount.trim(), sort_order: commonRoutes.length
+    distance:distance.trim(), rate:rate.trim(), amount:amount.trim(), sort_order: commonRoutes.length,
+    user_id: viewingAsUserId
   };
   const { error } = await sb.from('common_routes').insert(row);
   if(error){ toast('Could not add: ' + error.message); return; }
@@ -870,7 +952,7 @@ function renderCommonRoutesList(){
 async function ensureCustomer(name){
   let cust = customers.find(c=>c.name.toLowerCase()===name.toLowerCase());
   if(cust) return cust;
-  const newCust = { id: uid('c'), name };
+  const newCust = { id: uid('c'), name, user_id: viewingAsUserId };
   const { error } = await sb.from('customers').insert(newCust);
   if(error){ console.error(error); return null; }
   cust = { id:newCust.id, name };
@@ -888,7 +970,7 @@ async function ensureSoNumber(customerId, soNumber, reference){
     }
     return so;
   }
-  const newSo = { id: uid('so'), customer_id: customerId, so_number: soNumber, reference: reference||null };
+  const newSo = { id: uid('so'), customer_id: customerId, so_number: soNumber, reference: reference||null, user_id: viewingAsUserId };
   const { error } = await sb.from('customer_so_numbers').insert(newSo);
   if(error){ console.error(error); return null; }
   so = { id:newSo.id, customerId, soNumber, reference:reference||'' };
@@ -913,7 +995,7 @@ async function ensureRoute(customerId, leg){
     }
     return existing;
   }
-  const newRoute = { id: uid('rt'), customer_id: customerId, ...routeFields };
+  const newRoute = { id: uid('rt'), customer_id: customerId, user_id: viewingAsUserId, ...routeFields };
   const { error } = await sb.from('customer_routes').insert(newRoute);
   if(error){ console.error(error); return null; }
   const route = {
@@ -1464,7 +1546,8 @@ async function saveEntry(){
     legs: legs.map(l=>({
       start:l.start, end:l.end, from:l.from, to:l.to, mode:l.mode,
       distance: l.distance, rate: l.rate, amount: parseFloat(l.amount)||0
-    }))
+    })),
+    user_id: viewingAsUserId
   };
   const { error } = await sb.from('entries').upsert(row);
   if(error){ toast('Save failed: ' + error.message); return; }
@@ -1474,10 +1557,10 @@ async function saveEntry(){
   const tag = document.getElementById('f_tag').value.trim() || 'Receipt';
   const monthFolder = date.slice(0,7); // YYYY-MM
   for(const f of pendingFiles){
-    const path = `${monthFolder}/${id}/${uid('f')}-${f.fileName}`;
+    const path = `${viewingAsUserId}/${monthFolder}/${id}/${uid('f')}-${f.fileName}`;
     const { error: upErr } = await sb.storage.from(EVIDENCE_BUCKET).upload(path, f.blob, { contentType: f.mimeType, upsert:false });
     if(upErr){ toast('Upload failed for ' + f.fileName + ': ' + upErr.message); continue; }
-    const evRow = { id: uid('ev'), entry_id: id, file_name: f.fileName, mime_type: f.mimeType, tag, storage_path: path };
+    const evRow = { id: uid('ev'), entry_id: id, file_name: f.fileName, mime_type: f.mimeType, tag, storage_path: path, user_id: viewingAsUserId };
     const { error: insErr } = await sb.from('evidence').insert(evRow);
     if(insErr) toast('Could not record evidence: ' + insErr.message);
   }
@@ -2120,8 +2203,47 @@ async function exportPolishedExcel(){
 }
 
 /* ---------------- init ---------------- */
-async function boot(){
-  populateMonthYearSelectors();
+async function loadAllUsers(){
+  const { data, error } = await sb.rpc('list_users_for_admin');
+  if(error){ console.error(error); allUsers = []; return; }
+  allUsers = data || [];
+}
+
+async function adminCreateUser(){
+  if(!isAdmin) return;
+  const email = document.getElementById('nu_email').value.trim();
+  if(!email){ toast('Enter an email'); return; }
+  const profileFields = {
+    name: document.getElementById('nu_name').value.trim(),
+    code: document.getElementById('nu_code').value.trim(),
+    grade: document.getElementById('nu_grade').value.trim(),
+    location: document.getElementById('nu_location').value.trim(),
+    project: document.getElementById('nu_project').value.trim()
+  };
+  const btn = document.getElementById('nu_submitBtn');
+  const resultBox = document.getElementById('nu_result');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  const { data, error } = await sb.functions.invoke('admin-create-user', { body: { email, profile: profileFields } });
+  btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Create user';
+  const errMsg = error ? (error.message || String(error)) : (data && data.error);
+  if(errMsg){ resultBox.innerHTML = `<div class="note" style="color:var(--bad)">Could not create user: ${escapeHtml(errMsg)}</div>`; return; }
+  resultBox.innerHTML = `<div class="note" style="color:var(--good);background:var(--blue-light);padding:8px;border-radius:6px">
+    Created <strong>${escapeHtml(data.email)}</strong>.<br>
+    Temporary password: <code>${escapeHtml(data.tempPassword)}</code><br>
+    Share this with them now — it will not be shown again. They'll be asked to set their own password the first time they sign in.
+  </div>`;
+  document.getElementById('nu_email').value = '';
+  document.getElementById('nu_name').value = '';
+  document.getElementById('nu_code').value = '';
+  document.getElementById('nu_grade').value = '';
+  document.getElementById('nu_location').value = '';
+  document.getElementById('nu_project').value = '';
+  await loadAllUsers();
+  renderAdminUI();
+  toast('User created');
+}
+
+async function reloadScopedData(){
   try{
     await loadProfile();
     await loadEntries();
@@ -2140,6 +2262,56 @@ async function boot(){
   renderCustomerDirectory();
   renderCommonRouteChips();
   renderCommonRoutesList();
+  renderAdminUI();
+}
+
+async function switchViewingAs(userId){
+  viewingAsUserId = userId || currentUserId;
+  await reloadScopedData();
+  toast(viewingAsUserId === currentUserId ? 'Viewing your own account' : 'Viewing as another user — changes save to their account');
+}
+
+function renderAdminUI(){
+  const card = document.getElementById('usersCard');
+  const banner = document.getElementById('viewingAsBanner');
+  if(!isAdmin){
+    if(card) card.style.display = 'none';
+    if(banner) banner.style.display = 'none';
+    return;
+  }
+  if(card) card.style.display = '';
+  const sel = document.getElementById('viewingAsSelect');
+  if(sel){
+    sel.innerHTML = allUsers.map(u=>
+      `<option value="${escapeHtml(u.id)}"${u.id===viewingAsUserId?' selected':''}>${escapeHtml(u.email)}${u.id===currentUserId?' (you — admin)':''}</option>`
+    ).join('');
+  }
+  const list = document.getElementById('usersList');
+  if(list){
+    list.innerHTML = allUsers.length ? allUsers.map(u=>
+      `<div class="chip"><span>${escapeHtml(u.email)}${u.id===currentUserId?' <strong>(admin)</strong>':''}</span></div>`
+    ).join('') : '<div class="note">No users yet.</div>';
+  }
+  if(banner){
+    if(viewingAsUserId !== currentUserId){
+      const viewed = allUsers.find(u=>u.id===viewingAsUserId);
+      banner.style.display = 'flex';
+      const span = banner.querySelector('span');
+      if(span) span.textContent = `Viewing ${viewed? viewed.email : 'another user'}'s data — any changes you make are saved to their account, not yours.`;
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+}
+
+async function boot(){
+  const { data: userData } = await sb.auth.getUser();
+  currentUserId = userData && userData.user ? userData.user.id : null;
+  isAdmin = currentUserId === ADMIN_USER_ID;
+  viewingAsUserId = currentUserId;
+  populateMonthYearSelectors();
+  if(isAdmin) await loadAllUsers();
+  await reloadScopedData();
   loadUsageStats();
   startIdleWatch();
 }

@@ -9,33 +9,65 @@ a fresh copy of the app running from zero.
 Go to [supabase.com](https://supabase.com), create a free account and a new
 project. Note the project's URL and API keys — you'll need them in step 4.
 
-## 2. Run the database setup script
+## 2. Create your admin login
 
-Supabase Dashboard → **SQL Editor** → paste the full contents of
-[`supabase-setup.sql`](supabase-setup.sql) → **Run**.
+Supabase Dashboard → **Authentication** → **Users** → **Add user** → enter an
+email and password. This is real Supabase Auth (not a shared passcode) —
+there's no public sign-up in the app, so only accounts created this way can
+ever sign in. After creating it, click into the user and copy its **UUID** —
+you'll need it in the next step.
+
+## 3. Run the database setup script
+
+Open [`supabase-setup.sql`](supabase-setup.sql) and replace every occurrence
+of the UUID in the "admin account" comment near the top (search for it — it
+appears inside `is_admin()` and in the one-time backfill block) with the
+UUID you copied in step 2. Then: Supabase Dashboard → **SQL Editor** → paste
+the full contents → **Run**.
 
 This one file creates everything: the `entries`, `evidence`, `profile`, and
-`client_errors` tables, Row Level Security policies (every request requires a
-signed-in session), table grants, and the Storage access policies for the
-evidence bucket. It's safe to re-run if you're not sure whether it already ran.
+`client_errors` tables (each scoped to its owning user), Row Level Security
+policies (every request requires a signed-in session, and non-admin users
+only ever see their own rows), table grants, and the Storage access policies
+for the evidence bucket. It's safe to re-run if you're not sure whether it
+already ran (just make sure the UUID is still correct before you do).
 
-## 3. Create the evidence Storage bucket
+## 4. Create the evidence Storage bucket
 
 Supabase Dashboard → **Storage** → **New bucket** → name it exactly
 `evidence` → mark it **Public**.
 
 The bucket being public means anyone with the *exact* file URL can view a
-file (URLs are unguessable, not indexed anywhere) — uploading and deleting
-still require a signed-in session. This is a deliberate tradeoff for
-simplicity; see `DEPLOYMENT.md` if you want to revisit it later.
+file (URLs are unguessable, not indexed anywhere) — uploading, listing, and
+deleting still require a signed-in session scoped to the file's owner (or
+the admin). This is a deliberate tradeoff for simplicity; see `DEPLOYMENT.md`
+if you want to revisit it later.
 
-## 4. Create your login
+## 4b. Deploy the admin-create-user Edge Function (optional)
 
-Supabase Dashboard → **Authentication** → **Users** → **Add user** → enter an
-email and password. This is real Supabase Auth (not a shared passcode) —
-there's no public sign-up in the app, so this is the only account that will
-ever be able to sign in. You can add more users later, but see the note in
-`DEPLOYMENT.md` about per-row data ownership before you do.
+Only needed if you want the in-app Settings → Users → "Create user" button
+(auto-generated temporary password, forced password reset on first
+sign-in). Requires the [Supabase CLI](https://supabase.com/docs/guides/cli):
+
+```
+supabase functions deploy admin-create-user --project-ref YOUR-PROJECT-REF
+```
+
+No secrets to configure — `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and
+`SUPABASE_SERVICE_ROLE_KEY` are injected automatically into every Edge
+Function. If you skip this step, the button in Settings will fail; you can
+still add users the next way instead.
+
+## 4c. Adding users without the Edge Function (always works)
+
+Supabase Dashboard → **Authentication** → **Users** → **Add user**, same as
+step 2, with their own email + password — no SQL changes needed, since the
+schema already supports any number of accounts. They'll appear in the app's
+Settings → Users card (visible to the admin only) right away, and get a
+completely empty dashboard scoped to just their own data the moment they
+sign in — but without the forced-password-reset flow, since that only
+triggers for users created through the Edge Function. See "Multi-user
+accounts" in `DEPLOYMENT.md` for details.
 
 ## 5. Point the app at your Supabase project
 
