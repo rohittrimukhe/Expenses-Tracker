@@ -100,6 +100,11 @@
   .entries-list{margin-top:4px;}
   .entry-row{display:flex;justify-content:space-between;align-items:center;padding:8px 4px;border-bottom:1px solid var(--line);font-size:13px;}
   .entry-row .meta{color:var(--muted);font-size:12px;}
+  .drag-row{transition:background .12s,opacity .12s;border-radius:5px;}
+  .drag-row.dragging{opacity:.4;}
+  .drag-row.drag-over{background:var(--blue-light);}
+  .drag-handle{color:var(--muted);cursor:grab;flex-shrink:0;}
+  .drag-handle:active{cursor:grabbing;}
   .badge{background:var(--blue-light);color:var(--blue);border-radius:10px;padding:1px 8px;font-size:11px;font-weight:bold;}
   .lock-screen{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:100;}
   .lock-box{background:#fff;padding:26px;border-radius:10px;width:280px;text-align:center;}
@@ -526,7 +531,10 @@ const ICON_PATHS = {
   folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
   upload: '<path d="M12 16V4M12 4L7 9M12 4l5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
-  eye: '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/>'
+  eye: '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/>',
+  up: '<path d="M18 15l-6-6-6 6"/>',
+  down: '<path d="M6 9l6 6 6-6"/>',
+  grip: '<circle cx="9" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="15" cy="18" r="1.2"/>'
 };
 function icon(name, size){
   size = size||15;
@@ -709,7 +717,8 @@ async function loadCustomerDirectory(){
 }
 
 async function loadCommonRoutes(){
-  const { data, error } = await sb.from('common_routes').select('*').order('created_at', {ascending:true});
+  const { data, error } = await sb.from('common_routes').select('*')
+    .order('sort_order', {ascending:true, nullsFirst:false}).order('created_at', {ascending:true});
   if(error){ console.error(error); commonRoutes=[]; return; }
   commonRoutes = (data||[]).map(row=>({
     id:row.id, from:row.from_location||'', to:row.to_location||'',
@@ -744,7 +753,7 @@ async function addCommonRoute(){
   const amount = prompt('Amount (₹):'); if(amount===null) return;
   const row = {
     id: uid('cr'), from_location:from.trim(), to_location:to.trim(), mode:mode.trim(),
-    distance:distance.trim(), rate:rate.trim(), amount:amount.trim()
+    distance:distance.trim(), rate:rate.trim(), amount:amount.trim(), sort_order: commonRoutes.length
   };
   const { error } = await sb.from('common_routes').insert(row);
   if(error){ toast('Could not add: ' + error.message); return; }
@@ -781,20 +790,79 @@ async function deleteCommonRoute(id){
   commonRoutes = commonRoutes.filter(x=>x.id!==id);
   renderCommonRouteChips();
   renderCommonRoutesList();
+  persistCommonRouteOrder();
   toast('Common route deleted');
 }
+
+/* ---------------- common route ordering: up/down buttons + drag-and-drop ----------------
+   Both end up calling the same reorder-in-memory + persist path, so the two
+   input methods never disagree about what "the order" is. */
+async function persistCommonRouteOrder(){
+  try{
+    await Promise.all(commonRoutes.map((r,i)=> sb.from('common_routes').update({ sort_order:i }).eq('id', r.id)));
+  }catch(e){ console.error('Could not save route order', e); }
+}
+function moveCommonRoute(id, direction){
+  const idx = commonRoutes.findIndex(r=>r.id===id);
+  const swapIdx = idx + direction;
+  if(idx<0 || swapIdx<0 || swapIdx>=commonRoutes.length) return;
+  [commonRoutes[idx], commonRoutes[swapIdx]] = [commonRoutes[swapIdx], commonRoutes[idx]];
+  renderCommonRoutesList();
+  renderCommonRouteChips();
+  persistCommonRouteOrder();
+}
+
+let routeDragSrcIndex = null;
+function handleRouteDragStart(e, idx){
+  routeDragSrcIndex = idx;
+  e.dataTransfer.effectAllowed = 'move';
+  e.currentTarget.classList.add('dragging');
+}
+function handleRouteDragOver(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+}
+function handleRouteDragLeave(e){
+  e.currentTarget.classList.remove('drag-over');
+}
+function handleRouteDrop(e, idx){
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if(routeDragSrcIndex===null || routeDragSrcIndex===idx) return;
+  const [moved] = commonRoutes.splice(routeDragSrcIndex, 1);
+  commonRoutes.splice(idx, 0, moved);
+  routeDragSrcIndex = null;
+  renderCommonRoutesList();
+  renderCommonRouteChips();
+  persistCommonRouteOrder();
+}
+
 function renderCommonRoutesList(){
   const wrap = document.getElementById('commonRoutesList');
   if(!wrap) return;
   if(commonRoutes.length===0){ wrap.innerHTML = '<div class="empty">No common routes yet.</div>'; return; }
-  wrap.innerHTML = commonRoutes.map(r=>`
-    <div class="entry-row">
-      <div>${escapeHtml(r.from)||'?'} → ${escapeHtml(r.to)||'?'} <span class="meta">${escapeHtml(r.mode)}${r.distance? ' · '+escapeHtml(r.distance)+' km':''}${r.rate? ' · ₹'+escapeHtml(r.rate)+'/km':''}${r.amount? ' · ₹'+escapeHtml(r.amount):''}</span></div>
-      <div style="display:flex;gap:6px">
+  wrap.innerHTML = commonRoutes.map((r,i)=>`
+    <div class="entry-row drag-row" draggable="true" data-idx="${i}">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0">
+        <span class="drag-handle" title="Drag to reorder">${icon('grip',14)}</span>
+        <span style="min-width:0">${escapeHtml(r.from)||'?'} → ${escapeHtml(r.to)||'?'} <span class="meta">${escapeHtml(r.mode)}${r.distance? ' · '+escapeHtml(r.distance)+' km':''}${r.rate? ' · ₹'+escapeHtml(r.rate)+'/km':''}${r.amount? ' · ₹'+escapeHtml(r.amount):''}</span></span>
+      </div>
+      <div style="display:flex;gap:4px;align-items:center;flex-shrink:0">
+        <button type="button" class="btn ghost small" ${i===0?'disabled':''} onclick="moveCommonRoute('${r.id}',-1)" title="Move up">${icon('up',12)}</button>
+        <button type="button" class="btn ghost small" ${i===commonRoutes.length-1?'disabled':''} onclick="moveCommonRoute('${r.id}',1)" title="Move down">${icon('down',12)}</button>
         <button type="button" class="btn ghost small" onclick="editCommonRoute('${r.id}')">${icon('pencil',12)} Edit</button>
         <button type="button" class="btn danger small" onclick="deleteCommonRoute('${r.id}')">${icon('trash',12)} Delete</button>
       </div>
     </div>`).join('');
+  wrap.querySelectorAll('.drag-row').forEach(row=>{
+    const idx = parseInt(row.dataset.idx, 10);
+    row.addEventListener('dragstart', e=>handleRouteDragStart(e, idx));
+    row.addEventListener('dragover', handleRouteDragOver);
+    row.addEventListener('dragleave', handleRouteDragLeave);
+    row.addEventListener('drop', e=>handleRouteDrop(e, idx));
+    row.addEventListener('dragend', e=>e.currentTarget.classList.remove('dragging'));
+  });
 }
 
 /* ---------------- shared find-or-create helpers (used by sync, import, and the backfill) ---------------- */

@@ -102,8 +102,14 @@ create table if not exists common_routes (
   distance text,
   rate text,
   amount text,
+  sort_order integer,
   created_at timestamptz default now()
 );
+alter table common_routes add column if not exists sort_order integer;
+update common_routes cr
+set sort_order = sub.rn
+from (select id, row_number() over (order by created_at) as rn from common_routes) sub
+where cr.id = sub.id and cr.sort_order is null;
 
 -- ---------------- row level security ----------------
 -- auth.uid() is only non-null for a signed-in session, and Postgres checks
