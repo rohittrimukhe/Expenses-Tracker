@@ -154,6 +154,7 @@
     <h2>Set your password</h2>
     <div class="note" style="margin-bottom:10px">This is your first sign-in. Choose your own password to continue — your temporary one won't work again after this.</div>
     <form id="forcePasswordForm" onsubmit="submitForcedPassword(); return false;">
+      <input type="password" id="fp_temp" placeholder="Temporary password (the one you were given)" autocomplete="current-password" style="margin-bottom:10px">
       <input type="password" id="fp_new" placeholder="New password" autocomplete="new-password" style="margin-bottom:10px">
       <input type="password" id="fp_confirm" placeholder="Confirm new password" autocomplete="new-password" style="margin-bottom:10px">
       <button class="btn" style="width:100%" type="submit">Set password &amp; continue</button>
@@ -466,16 +467,34 @@ async function trySignIn(){
 
 async function submitForcedPassword(){
   const btn = document.querySelector('#forcePasswordScreen button');
+  const temp = document.getElementById('fp_temp').value;
   const next = document.getElementById('fp_new').value;
   const confirm2 = document.getElementById('fp_confirm').value;
   const note = document.getElementById('forcePasswordNote');
+  if(!temp){ note.textContent = 'Enter the temporary password you were given'; note.style.color = '#c0392b'; return; }
   if(!next || next.length < 6){ note.textContent = 'Use at least 6 characters'; note.style.color = '#c0392b'; return; }
   if(next !== confirm2){ note.textContent = "Passwords don't match"; note.style.color = '#c0392b'; return; }
   btn.disabled = true; btn.textContent = 'Setting password…';
+
+  const { data: userData, error: userErr } = await sb.auth.getUser();
+  if(userErr || !userData || !userData.user || !userData.user.email){
+    btn.disabled = false; btn.textContent = 'Set password & continue';
+    note.textContent = 'Could not verify your session — please refresh and sign in again';
+    note.style.color = '#c0392b';
+    return;
+  }
+  const { error: verifyErr } = await sb.auth.signInWithPassword({ email: userData.user.email, password: temp });
+  if(verifyErr){
+    btn.disabled = false; btn.textContent = 'Set password & continue';
+    note.textContent = 'Temporary password is incorrect';
+    note.style.color = '#c0392b';
+    return;
+  }
+
   const { error } = await sb.auth.updateUser({ password: next, data: { must_change_password: false } });
   btn.disabled = false; btn.textContent = 'Set password & continue';
   if(error){ note.textContent = error.message; note.style.color = '#c0392b'; return; }
-  document.getElementById('fp_new').value = ''; document.getElementById('fp_confirm').value = '';
+  document.getElementById('fp_temp').value = ''; document.getElementById('fp_new').value = ''; document.getElementById('fp_confirm').value = '';
   document.getElementById('forcePasswordScreen').style.display = 'none';
   document.getElementById('appRoot').style.display = 'block';
   await boot();
