@@ -7,13 +7,33 @@
 // with no valid JWT at all before this code even runs (verify_jwt: true).
 import { createClient } from 'npm:@supabase/supabase-js@2.110.7';
 
+// Supabase's project-level password policy requires at least one
+// lowercase, one uppercase, one digit, and one symbol — picking purely at
+// random from a mixed pool makes that a matter of luck (and did fail in
+// testing). Guarantee one of each required class, then fill the rest and
+// shuffle, so every generated password passes on the first try.
 function generateTempPassword(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  const bytes = new Uint8Array(14);
-  crypto.getRandomValues(bytes);
-  let out = '';
-  for (const b of bytes) out += chars[b % chars.length];
-  return out;
+  const classes = [
+    'abcdefghijkmnpqrstuvwxyz',
+    'ABCDEFGHJKLMNPQRSTUVWXYZ',
+    '23456789',
+    '!@#$%^&*',
+  ];
+  const randIndex = (max: number) => {
+    const arr = new Uint32Array(1);
+    crypto.getRandomValues(arr);
+    return arr[0] % max;
+  };
+  const all = classes.join('');
+  const length = 14;
+  const chars = classes.map(c => c[randIndex(c.length)]);
+  while (chars.length < length) chars.push(all[randIndex(all.length)]);
+  // Fisher-Yates shuffle so the guaranteed characters aren't always first.
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randIndex(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
 }
 
 Deno.serve(async (req: Request) => {
