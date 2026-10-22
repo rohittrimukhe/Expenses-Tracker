@@ -19,7 +19,7 @@ function generateTempPassword(): string {
 Deno.serve(async (req: Request) => {
   const cors = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   };
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
