@@ -476,24 +476,13 @@ async function submitForcedPassword(){
   if(next !== confirm2){ note.textContent = "Passwords don't match"; note.style.color = '#c0392b'; return; }
   btn.disabled = true; btn.textContent = 'Setting password…';
 
-  const { data: userData, error: userErr } = await sb.auth.getUser();
-  if(userErr || !userData || !userData.user || !userData.user.email){
-    btn.disabled = false; btn.textContent = 'Set password & continue';
-    note.textContent = 'Could not verify your session — please refresh and sign in again';
-    note.style.color = '#c0392b';
-    return;
-  }
-  const { error: verifyErr } = await sb.auth.signInWithPassword({ email: userData.user.email, password: temp });
-  if(verifyErr){
-    btn.disabled = false; btn.textContent = 'Set password & continue';
-    note.textContent = 'Temporary password is incorrect';
-    note.style.color = '#c0392b';
-    return;
-  }
-
-  const { error } = await sb.auth.updateUser({ password: next, data: { must_change_password: false } });
+  const { error } = await sb.auth.updateUser({ password: next, current_password: temp, data: { must_change_password: false } });
   btn.disabled = false; btn.textContent = 'Set password & continue';
-  if(error){ note.textContent = error.message; note.style.color = '#c0392b'; return; }
+  if(error){
+    note.textContent = error.code === 'current_password_invalid' ? 'Temporary password is incorrect' : error.message;
+    note.style.color = '#c0392b';
+    return;
+  }
   document.getElementById('fp_temp').value = ''; document.getElementById('fp_new').value = ''; document.getElementById('fp_confirm').value = '';
   document.getElementById('forcePasswordScreen').style.display = 'none';
   document.getElementById('appRoot').style.display = 'block';
@@ -715,7 +704,7 @@ async function changePassword(){
   const { error: verifyErr } = await sb.auth.signInWithPassword({ email: userData.user.email, password: current });
   if(verifyErr){ toast('Current password is incorrect'); return; }
 
-  const { error } = await sb.auth.updateUser({ password: next });
+  const { error } = await sb.auth.updateUser({ password: next, current_password: current });
   if(error){ toast('Could not update password: ' + error.message); return; }
 
   document.getElementById('pw_current').value = '';
