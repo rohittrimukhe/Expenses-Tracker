@@ -1673,7 +1673,7 @@ async function saveEntry(){
     })),
     user_id: viewingAsUserId
   };
-  if(document.getElementById('rep_on').checked && !editingId){ return saveRepeated(row); }
+  if(document.getElementById('rep_on').checked){ return saveRepeated(row, editingId); }
   const oldE = entries.find(e=>e.id===id);
   const { error } = await sb.from('entries').upsert(row);
   if(error){ toast('Save failed: ' + error.message); return; }
@@ -2505,9 +2505,17 @@ function updateRepeatPreview(){
   if(!ds.length){ el.textContent = all ? 'All selected dates already have an entry.' : 'No dates selected yet — tap days on the calendar.'; return; }
   el.innerHTML = `<b>${ds.length} entr${ds.length>1?'ies':'y'}</b> will be created: ` + ds.map(fmtDate).join(', ') + (all>ds.length?` <i>(${all-ds.length} skipped — already have an entry)</i>`:'');
 }
-async function saveRepeated(baseRow){
-  const ds = repeatDates();
-  if(!ds.length){ toast('No dates to create — check the date range'); return; }
+async function saveRepeated(baseRow, editId){
+  const ds = repeatDates().filter(d=>!(editId && d===baseRow.date));
+  if(!ds.length){ toast('No dates selected — tap the dates on the calendar first'); return; }
+  if(editId){
+    // editing an existing entry AND copying it to more dates: save the edit first
+    const oldE = entries.find(e=>e.id===editId);
+    const { error: upErr } = await sb.from('entries').upsert(baseRow);
+    if(upErr){ toast('Save failed: ' + upErr.message); return; }
+    const newE = {id:editId, date:baseRow.date, customerName:baseRow.customer_name, soNumber:baseRow.so_number, project:baseRow.project, legs:baseRow.legs};
+    if(oldE) await logChanges(diffEntries(oldE,newE).map(d=>({action:'edited',entry_id:editId,entry_date:baseRow.date,field:d.field,old_value:d.old,new_value:d.nw})),'manual');
+  }
   if(ds.length>62 && !confirm(`Create ${ds.length} entries?`)) return;
   if(pendingFiles.length && !confirm('Attached evidence is NOT copied to repeated entries. Continue without it?')) return;
   const rows = ds.map(d=>({ id: uid('e'), date:d, customer_name: baseRow.customer_name, so_number: baseRow.so_number, project: baseRow.project, legs: baseRow.legs, user_id: viewingAsUserId }));
@@ -2520,7 +2528,7 @@ async function saveRepeated(baseRow){
   resetEntryForm(); toggleRepeat();
   showMonthOf(ds[0]);
   renderMonth(); renderDashboard();
-  toast(`${rows.length} entries created — adjust amounts here`);
+  toast(`${rows.length} entries created${editId?' (and the edit saved)':''} — adjust amounts here`);
   const d0 = new Date(ds[0]+'T00:00:00');
   bulkTarget = {m:d0.getMonth(), y:d0.getFullYear()};
   document.querySelector('.tab[data-tab="bulk"]').click();
