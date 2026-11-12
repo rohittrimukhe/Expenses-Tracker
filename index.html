@@ -162,6 +162,19 @@
   .badge.green{background:#d8f3e3;color:#1e7a46;}
   .badge.red{background:#fde2e0;color:#b3261e;}
   .badge.grey{background:#eceff4;color:#5b6577;}
+  .cal{max-width:340px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px;}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-weight:bold;color:var(--navy);font-size:13px;}
+  .cal-head button{border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;padding:3px 10px;font-size:14px;color:var(--blue);}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+  .cal-dow{font-size:10px;color:var(--muted);text-align:center;text-transform:uppercase;padding:2px 0;}
+  .cal-day{position:relative;text-align:center;padding:8px 0;font-size:13px;border-radius:6px;cursor:pointer;border:1px solid transparent;user-select:none;}
+  .cal-day:hover{background:var(--blue-light);}
+  .cal-day.sun{color:var(--bad);}
+  .cal-day.sel{background:var(--blue);color:#fff;font-weight:bold;}
+  .cal-day.has:after{content:'';position:absolute;bottom:3px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--good);}
+  .cal-day.sel.has:after{background:#fff;}
+  .cal-day.today{border-color:var(--blue);}
+  .cal-day.empty{visibility:hidden;cursor:default;}
 </style>
 </head>
 <body>
@@ -271,16 +284,21 @@
       <div class="repeat-box" id="repeatBox">
         <label class="chk"><input type="checkbox" id="rep_on" onchange="toggleRepeat()"> Repeat this entry on several dates (same customer, route, mode and timings)</label>
         <div id="repeatOpts" style="display:none;margin-top:10px">
-          <div class="grid">
-            <div class="field"><label>Repeat from (the date above) until</label><input type="date" id="rep_to" oninput="updateRepeatPreview()"></div>
+          <div class="note" style="margin:0 0 6px">Tap the dates to create this entry on. Any dates work — consecutive or not. Tap again to remove.</div>
+          <div class="cal" id="repCal"></div>
+          <div class="bulk-bar" style="margin-top:10px;align-items:flex-end">
+            <div class="field" style="width:150px"><label>Quick add: from</label><input type="date" id="rep_from"></div>
+            <div class="field" style="width:150px"><label>to</label><input type="date" id="rep_to"></div>
+            <button type="button" class="btn secondary small" onclick="repAddRange()">Add range</button>
+            <button type="button" class="btn ghost small" onclick="repClear()">Clear all</button>
           </div>
           <div class="opt-row">
-            <label><input type="checkbox" id="rep_sun" checked onchange="updateRepeatPreview()"> Skip Sundays</label>
-            <label><input type="checkbox" id="rep_sat" onchange="updateRepeatPreview()"> Skip Saturdays</label>
-            <label><input type="checkbox" id="rep_ex" checked onchange="updateRepeatPreview()"> Skip dates that already have an entry</label>
+            <label><input type="checkbox" id="rep_sun" checked> Range: skip Sundays</label>
+            <label><input type="checkbox" id="rep_sat"> Range: skip Saturdays</label>
+            <label><input type="checkbox" id="rep_ex" checked onchange="updateRepeatPreview();repCalRender()"> Skip dates that already have an entry</label>
           </div>
           <div class="note" id="repPreview"></div>
-          <div class="note">One entry is created per date. Afterwards you land in <b>Bulk Edit</b> to change amounts or any other detail. Evidence is added to each entry separately (open the entry and attach it).</div>
+          <div class="note">One entry is created per selected date. Afterwards you land in <b>Bulk Edit</b> to change amounts or any other detail. Evidence is added to each entry separately (open the entry and attach it).</div>
         </div>
       </div>
 
@@ -2395,44 +2413,67 @@ function renderChangeLog(){
 /* =====================================================================
    REPEAT FOR A DATE RANGE
    ===================================================================== */
+let repSel = new Set();
+let repView = null; // {y,m}
+function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function toggleRepeat(){
   const on = document.getElementById('rep_on').checked;
   document.getElementById('repeatOpts').style.display = on ? 'block' : 'none';
   if(on){
-    const to = document.getElementById('rep_to');
-    if(!to.value){
-      const d = new Date(document.getElementById('f_date').value+'T00:00:00');
-      d.setDate(d.getDate()+6);
-      to.value = ymd(d);
-    }
-  }
+    const base = document.getElementById('f_date').value || ymd(new Date());
+    repSel = new Set([base]);
+    const d = new Date(base+'T00:00:00');
+    repView = {y:d.getFullYear(), m:d.getMonth()};
+    document.getElementById('rep_from').value = base;
+    document.getElementById('rep_to').value = '';
+    repCalRender();
+  } else { repSel = new Set(); }
   updateRepeatPreview();
 }
-function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function repeatDates(){
-  const from = document.getElementById('f_date').value;
-  const to = document.getElementById('rep_to').value;
-  if(!from || !to || to<from) return [];
-  const skipSun = document.getElementById('rep_sun').checked;
-  const skipSat = document.getElementById('rep_sat').checked;
-  const skipEx = document.getElementById('rep_ex').checked;
+function repCalRender(){
+  const el = document.getElementById('repCal'); if(!el || !repView) return;
+  const {y,m} = repView;
+  const names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const first = new Date(y,m,1), days = new Date(y,m+1,0).getDate();
   const existing = new Set(entries.map(e=>e.date));
-  const out = [];
-  const d = new Date(from+'T00:00:00'); const end = new Date(to+'T00:00:00');
-  let guard = 0;
-  while(d<=end && guard++<93){
-    const dow = d.getDay(); const s = ymd(d);
-    if(!(skipSun&&dow===0) && !(skipSat&&dow===6) && !(skipEx&&existing.has(s))) out.push(s);
+  const todayS = ymd(new Date());
+  let h = `<div class="cal-head"><button type="button" onclick="repNav(-1)">‹</button><span>${names[m]} ${y}</span><button type="button" onclick="repNav(1)">›</button></div><div class="cal-grid">`;
+  ['S','M','T','W','T','F','S'].forEach(d=>h+=`<div class="cal-dow">${d}</div>`);
+  for(let i=0;i<first.getDay();i++) h+='<div class="cal-day empty"></div>';
+  for(let d=1; d<=days; d++){
+    const s = y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const dow = new Date(y,m,d).getDay();
+    h+=`<div class="cal-day ${dow===0?'sun':''} ${repSel.has(s)?'sel':''} ${existing.has(s)?'has':''} ${s===todayS?'today':''}" onclick="repToggleDay('${s}')" title="${existing.has(s)?'Already has an entry':''}">${d}</div>`;
+  }
+  el.innerHTML = h + '</div><div class="note" style="margin:6px 0 0">● green dot = a day that already has an entry</div>';
+}
+function repNav(n){ let m=repView.m+n, y=repView.y; if(m<0){m=11;y--;} if(m>11){m=0;y++;} repView={y,m}; repCalRender(); }
+function repToggleDay(s){ if(repSel.has(s)) repSel.delete(s); else repSel.add(s); repCalRender(); updateRepeatPreview(); }
+function repClear(){ repSel = new Set(); repCalRender(); updateRepeatPreview(); }
+function repAddRange(){
+  const from = document.getElementById('rep_from').value, to = document.getElementById('rep_to').value;
+  if(!from || !to || to<from){ toast('Pick a valid from / to date'); return; }
+  const skipSun = document.getElementById('rep_sun').checked, skipSat = document.getElementById('rep_sat').checked;
+  const d = new Date(from+'T00:00:00'), end = new Date(to+'T00:00:00'); let g=0, n=0;
+  while(d<=end && g++<93){
+    const dow=d.getDay();
+    if(!(skipSun&&dow===0) && !(skipSat&&dow===6)){ repSel.add(ymd(d)); n++; }
     d.setDate(d.getDate()+1);
   }
-  return out;
+  repView = {y:new Date(from+'T00:00:00').getFullYear(), m:new Date(from+'T00:00:00').getMonth()};
+  repCalRender(); updateRepeatPreview(); toast(n+' dates added');
+}
+function repeatDates(){
+  const skipEx = document.getElementById('rep_ex').checked;
+  const existing = new Set(entries.map(e=>e.date));
+  return [...repSel].filter(d=>!(skipEx && existing.has(d))).sort();
 }
 function updateRepeatPreview(){
   const el = document.getElementById('repPreview');
   if(!document.getElementById('rep_on').checked){ el.textContent=''; return; }
-  const ds = repeatDates();
-  if(!ds.length){ el.textContent = 'No dates selected — check the "until" date.'; return; }
-  el.innerHTML = `<b>${ds.length} entr${ds.length>1?'ies':'y'}</b> will be created: ` + ds.map(fmtDate).join(', ');
+  const all = [...repSel].length, ds = repeatDates();
+  if(!ds.length){ el.textContent = all ? 'All selected dates already have an entry.' : 'No dates selected yet — tap days on the calendar.'; return; }
+  el.innerHTML = `<b>${ds.length} entr${ds.length>1?'ies':'y'}</b> will be created: ` + ds.map(fmtDate).join(', ') + (all>ds.length?` <i>(${all-ds.length} skipped — already have an entry)</i>`:'');
 }
 async function saveRepeated(baseRow){
   const ds = repeatDates();
