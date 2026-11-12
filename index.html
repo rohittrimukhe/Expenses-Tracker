@@ -628,7 +628,12 @@ let idleTimer = null;
 let idleWarnTimer = null;
 let idleCountdownInterval = null;
 
+const ACTIVITY_KEY = 'lrs_last_activity';
+let lastActivityWrite = 0;
+function lastActivityTs(){ try{ return parseInt(localStorage.getItem(ACTIVITY_KEY),10)||0; }catch(e){ return 0; } }
 function resetIdleTimer(){
+  const now = Date.now();
+  if(now - lastActivityWrite > 3000){ lastActivityWrite = now; try{ localStorage.setItem(ACTIVITY_KEY, String(now)); }catch(e){} }
   clearTimeout(idleTimer);
   clearTimeout(idleWarnTimer);
   hideIdleWarning();
@@ -665,10 +670,37 @@ function hideIdleWarning(){
   clearInterval(idleCountdownInterval);
 }
 async function autoSignOutIdle(){
+  // Another open tab of this app may still be in use — the login is shared between tabs,
+  // so only sign out when the whole app has been idle, not just this tab.
+  const idleFor = Date.now() - lastActivityTs();
+  if(idleFor < IDLE_TIMEOUT_MS - 2000){
+    hideIdleWarning();
+    clearTimeout(idleTimer); clearTimeout(idleWarnTimer);
+    idleWarnTimer = setTimeout(showIdleWarning, Math.max(0, IDLE_TIMEOUT_MS - idleFor - IDLE_WARNING_MS));
+    idleTimer = setTimeout(autoSignOutIdle, IDLE_TIMEOUT_MS - idleFor);
+    return;
+  }
   stopIdleWatch();
   await sb.auth.signOut();
   sessionStorage.setItem('idleSignedOut','1');
   location.reload();
+}
+if(sessionStorage.getItem('sessionEnded')){
+  sessionStorage.removeItem('sessionEnded');
+  const endNote = document.getElementById('lockNote');
+  if(endNote) endNote.textContent = 'Your session ended (signed out elsewhere or expired). Please sign in again.';
+}
+sb.auth.onAuthStateChange((evt)=>{
+  if(evt==='SIGNED_OUT' && document.getElementById('appRoot').style.display==='block'){
+    sessionStorage.setItem('sessionEnded','1'); location.reload();
+  }
+});
+async function ensureSession(){
+  const { data } = await sb.auth.getSession();
+  if(data && data.session) return true;
+  alert('Your session has ended, so this change could not be saved. Please sign in again and repeat it.');
+  sessionStorage.setItem('sessionEnded','1'); location.reload();
+  return false;
 }
 if(sessionStorage.getItem('idleSignedOut')){
   sessionStorage.removeItem('idleSignedOut');
@@ -1658,6 +1690,7 @@ function validateEntryForm(){
 
 async function saveEntry(){
   if(!validateEntryForm()) return;
+  if(!(await ensureSession())) return;
   const date = document.getElementById('f_date').value;
   const legs = currentLegs.filter(l=> l.start && l.end && l.from && l.to && l.mode && l.amount);
 
@@ -2765,6 +2798,7 @@ function normLeg(r){
     distance:norm(r.distance), rate:norm(r.rate), amount:parseFloat(r.amount)||0};
 }
 async function applyEntryChanges(newList, source, deleteIds){
+  if(!(await ensureSession())) return -1;
   // returns number applied
   const logs = []; const upserts = [];
   for(const ne of newList){
@@ -2796,6 +2830,7 @@ async function applyEntryChanges(newList, source, deleteIds){
   return upserts.length + (deleteIds||[]).length;
 }
 async function saveGrid(){
+  if(!(await ensureSession())) return;
   const {list, problems} = gridToEntries();
   if(problems.length){ alert('Fix these first:\n\n'+[...new Set(problems)].join('\n')); return; }
   const key = bulkKey();
