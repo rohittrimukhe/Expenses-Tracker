@@ -131,6 +131,37 @@
   .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:10px 0;}
   .table-scroll table{min-width:640px;}
   table.months td.num{text-align:right;}
+  .chk{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:bold;color:var(--navy);text-transform:none;letter-spacing:0;margin:0;cursor:pointer;}
+  .chk input{width:auto;margin:0;}
+  .repeat-box{background:var(--blue-light);border:1px solid #c7dafc;border-radius:8px;padding:10px 12px;margin:8px 0 4px;}
+  .opt-row{display:flex;gap:18px;flex-wrap:wrap;margin-top:8px;}
+  .opt-row label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:normal;color:var(--ink);text-transform:none;letter-spacing:0;margin:0;}
+  .opt-row input{width:auto;}
+  .bulk-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;}
+  .bulk-bar .field{margin:0;}
+  .grid-wrap{overflow:auto;max-height:68vh;border:1px solid var(--line);border-radius:6px;}
+  table.xl{border-collapse:collapse;font-size:12px;min-width:1000px;width:100%;}
+  table.xl th{position:sticky;top:0;background:var(--navy);color:#fff;font-size:10.5px;text-transform:uppercase;padding:6px;border:1px solid #2b3d66;z-index:2;}
+  table.xl td{border:1px solid var(--line);padding:0;background:#fff;}
+  table.xl td.rn{background:#f3f5f9;color:var(--muted);text-align:center;font-size:11px;padding:0 6px;min-width:34px;}
+  table.xl td input,table.xl td select{border:none;border-radius:0;padding:6px;font-size:12px;background:transparent;min-width:60px;}
+  table.xl td input:focus,table.xl td select:focus{outline:2px solid var(--blue);outline-offset:-2px;background:#fff;}
+  table.xl td.dirty{background:#fff6d6;}
+  table.xl td.dirty input,table.xl td.dirty select{background:#fff6d6;}
+  table.xl tr.sel td{background:#e8f0fe;}
+  table.xl tr.sel td.dirty{background:#fdeeb0;}
+  table.xl td.dis input{color:#9aa3b2;}
+  table.xl tr.newrow td.rn{background:#d8f3e3;color:#1e7a46;}
+  table.xl tfoot td{background:#f3f5f9;font-weight:bold;padding:6px;}
+  .warn-box{background:#fff6d6;border:1px solid #ecd37a;border-radius:6px;padding:8px 10px;font-size:12px;margin-bottom:10px;}
+  .diff-card{border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin-bottom:8px;}
+  .diff-card table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px;}
+  .diff-card td,.diff-card th{padding:3px 6px;border-bottom:1px solid var(--line);text-align:left;}
+  .old{color:var(--bad);text-decoration:line-through;}
+  .new{color:var(--good);font-weight:bold;}
+  .badge.green{background:#d8f3e3;color:#1e7a46;}
+  .badge.red{background:#fde2e0;color:#b3261e;}
+  .badge.grey{background:#eceff4;color:#5b6577;}
 </style>
 </head>
 <body>
@@ -186,7 +217,9 @@
     <div class="tab active" data-tab="dashboard"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg> Dashboard</div>
     <div class="tab" data-tab="entry"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg> New Entry</div>
     <div class="tab" data-tab="month"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg> This Month's Claim</div>
+    <div class="tab" data-tab="bulk"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg> Bulk Edit</div>
     <div class="tab" data-tab="evidence"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-4 4-3-3-6 6"/></svg> Evidence Vault</div>
+    <div class="tab" data-tab="log"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Change Log</div>
     <div class="tab" data-tab="profile"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg> Employee Details</div>
   </div>
 
@@ -234,6 +267,22 @@
       </div>
       <div id="commonRoutesWrap"></div>
       <div id="routeSuggest" class="suggest-box" style="position:static;margin-bottom:10px"></div>
+
+      <div class="repeat-box" id="repeatBox">
+        <label class="chk"><input type="checkbox" id="rep_on" onchange="toggleRepeat()"> Repeat this entry on several dates (same customer, route, mode and timings)</label>
+        <div id="repeatOpts" style="display:none;margin-top:10px">
+          <div class="grid">
+            <div class="field"><label>Repeat from (the date above) until</label><input type="date" id="rep_to" oninput="updateRepeatPreview()"></div>
+          </div>
+          <div class="opt-row">
+            <label><input type="checkbox" id="rep_sun" checked onchange="updateRepeatPreview()"> Skip Sundays</label>
+            <label><input type="checkbox" id="rep_sat" onchange="updateRepeatPreview()"> Skip Saturdays</label>
+            <label><input type="checkbox" id="rep_ex" checked onchange="updateRepeatPreview()"> Skip dates that already have an entry</label>
+          </div>
+          <div class="note" id="repPreview"></div>
+          <div class="note">One entry is created per date. Afterwards you land in <b>Bulk Edit</b> to change amounts or any other detail. Evidence is added to each entry separately (open the entry and attach it).</div>
+        </div>
+      </div>
 
       <div class="table-scroll">
       <table class="legs-table" id="legsTable">
@@ -299,6 +348,52 @@
         <button class="btn" id="exportBtn" onclick="exportPolishedExcel()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg> <span id="exportBtnText">Export to Excel</span></button>
       </div>
       <div id="monthTableWrap"></div>
+    </div>
+  </div>
+
+  <!-- BULK EDIT -->
+  <div class="panel" id="panel-bulk">
+    <div class="card">
+      <h2>Bulk Edit <span class="note" style="display:inline">(works like a spreadsheet — type, paste from Excel, fill down)</span></h2>
+      <div class="bulk-bar">
+        <div class="field" style="width:140px"><label>Month</label><select id="bulk_month" onchange="bulkMonthChanged()"></select></div>
+        <div class="field" style="width:100px"><label>Year</label><select id="bulk_year" onchange="bulkMonthChanged()"></select></div>
+        <button class="btn secondary small" onclick="addGridRow()">+ Row</button>
+        <button class="btn secondary small" onclick="fillDown()" title="Copies the value of the cell you last clicked into the selected rows (or all rows below it)">Fill down</button>
+        <button class="btn danger small" onclick="deleteSelectedRows()">Remove selected</button>
+        <button class="btn ghost small" onclick="loadBulkGrid(true)">Discard changes</button>
+        <button class="btn" id="bulkSaveBtn" onclick="saveGrid()">Save changes</button>
+      </div>
+      <div class="bulk-bar">
+        <div class="field" style="width:150px"><label>Set for selected rows</label>
+          <select id="bulk_field"></select></div>
+        <div class="field" style="width:180px"><label>Value</label><input type="text" id="bulk_value" placeholder="e.g. 250"></div>
+        <button class="btn secondary small" onclick="applyToSelected()">Apply to selected</button>
+        <span style="flex:1"></span>
+        <button class="btn secondary small" onclick="document.getElementById('importFile').click()">Import from Excel…</button>
+        <input type="file" id="importFile" accept=".xlsx" style="display:none" onchange="importExcel(this.files[0]);this.value=''">
+      </div>
+      <div id="importPreview"></div>
+      <div class="grid-wrap"><div id="gridWrap"></div></div>
+      <div class="note">Yellow cells are unsaved changes. Tick rows to select them, then use <b>Fill down</b> or <b>Apply to selected</b>. Paste cells copied from Excel into any cell. Date and customer of a day are edited on its first row. <b>Excel round trip:</b> export from "This Month's Claim", edit in Excel, then <b>Import from Excel</b> — you'll see every change before it is applied, and it is recorded in the Change Log.</div>
+    </div>
+  </div>
+
+  <!-- CHANGE LOG -->
+  <div class="panel" id="panel-log">
+    <div class="card">
+      <h2>Change Log <span class="note" style="display:inline">(every edit, import and delete, with old and new values)</span></h2>
+      <div class="bulk-bar">
+        <div class="field" style="width:170px"><label>Source</label>
+          <select id="log_source" onchange="renderChangeLog()">
+            <option value="">All</option><option value="manual">Manual edit</option><option value="repeat">Repeat</option>
+            <option value="bulk">Bulk Edit</option><option value="import">Excel import</option><option value="cleanup">Month cleanup</option>
+          </select></div>
+        <div class="field" style="width:200px"><label>Search</label><input type="text" id="log_q" placeholder="date, field, value…" oninput="renderChangeLog()"></div>
+        <button class="btn secondary small" onclick="loadChangeLog()">Refresh</button>
+      </div>
+      <div class="table-scroll"><div id="logWrap"></div></div>
+      <div class="note">Shows the latest 500 changes.</div>
     </div>
   </div>
 
@@ -1181,6 +1276,8 @@ document.querySelectorAll('.tab').forEach(t=>{
     if(t.dataset.tab==='month') renderMonth();
     if(t.dataset.tab==='evidence') renderEvidenceGrid();
     if(t.dataset.tab==='dashboard') renderDashboard();
+    if(t.dataset.tab==='bulk') openBulk();
+    if(t.dataset.tab==='log') loadChangeLog();
   });
 });
 
@@ -1557,8 +1654,13 @@ async function saveEntry(){
     })),
     user_id: viewingAsUserId
   };
+  if(document.getElementById('rep_on').checked && !editingId){ return saveRepeated(row); }
+  const oldE = entries.find(e=>e.id===id);
   const { error } = await sb.from('entries').upsert(row);
   if(error){ toast('Save failed: ' + error.message); return; }
+  const newE = {id, date, customerName:row.customer_name, soNumber:row.so_number, project:row.project, legs:row.legs};
+  if(oldE) await logChanges(diffEntries(oldE,newE).map(d=>({action:'edited',entry_id:id,entry_date:date,field:d.field,old_value:d.old,new_value:d.nw})),'manual');
+  else await logChanges([{action:'created',entry_id:id,entry_date:date,field:'Entry',old_value:'',new_value:entrySummary(newE)}],'manual');
 
   await syncCustomerAndRoutes(row.customer_name, row.so_number, row.legs);
 
@@ -1582,11 +1684,13 @@ async function saveEntry(){
 async function deleteEntry(id){
   if(!confirm('Delete this entry and its linked evidence?')) return;
   const linked = evidence.filter(e=>e.entryId===id);
+  const delE = entries.find(e=>e.id===id);
   if(linked.length){
     await sb.storage.from(EVIDENCE_BUCKET).remove(linked.map(e=>e.storagePath));
   }
   const { error } = await sb.from('entries').delete().eq('id', id);
   if(error){ toast('Delete failed: ' + error.message); return; }
+  if(delE) await logChanges([{action:'deleted',entry_id:id,entry_date:delE.date,field:'Entry',old_value:entrySummary(delE),new_value:''}],'manual');
   await loadEntries(); await loadEvidence();
   renderMonth(); renderEvidenceGrid(); renderDashboard();
   toast('Entry deleted');
@@ -1855,6 +1959,7 @@ async function deleteMonthData(monthKey, label){
     if(linked.length){ await sb.storage.from(EVIDENCE_BUCKET).remove(linked.map(ev=>ev.storagePath)); }
     await sb.from('entries').delete().eq('id', e.id);
   }
+  await logChanges(monthList.map(e=>({action:'deleted',entry_id:e.id,entry_date:e.date,field:'Entry',old_value:entrySummary(e),new_value:''})),'cleanup');
   await loadEntries(); await loadEvidence();
   renderDashboard(); renderMonth(); renderEvidenceGrid();
   toast(`Deleted ${label} data`);
@@ -1996,6 +2101,7 @@ async function exportPolishedExcel(){
     // just overwrites the same object repeatedly, leaving only the last
     // column's value. So each merged block below gets its border set once,
     // on its anchor cell, instead of looped per column.
+    ws.getColumn(13).hidden = true;
     const COLS = 'ABCDEFGHIJKL'.split('');
 
     ws.getCell('A1').border = borderBox('medium','thin','medium','medium');
@@ -2062,6 +2168,7 @@ async function exportPolishedExcel(){
       kcell.value = { formula:`SUM(K${startRow}:K${endRow})`, result: dayTotal };
       kcell.font = { name:FONT, size:11 };
       kcell.alignment = { horizontal:'center', vertical:'middle', wrapText:true };
+      ws.getCell(`M${startRow}`).value = entry.id; // hidden key used when an edited file is re-imported
 
       // Blank separator row — still needs the outer left/right edge so the
       // table's single thick border stays unbroken all the way down.
@@ -2207,6 +2314,565 @@ async function exportPolishedExcel(){
     toast('Export failed: ' + err.message);
   }finally{
     btn.disabled = false; document.getElementById('exportBtnText').textContent = 'Export to Excel';
+  }
+}
+
+/* =====================================================================
+   CHANGE LOG
+   ===================================================================== */
+const ENTRY_FIELDS_LABEL = {};
+const FIELD_LABELS = {start:'Start', end:'End', from:'From', to:'To', mode:'Mode', distance:'Distance', rate:'Rate', amount:'Amount'};
+let changeLog = [];
+let logWarned = false;
+function esc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function norm(v){ return (v===null||v===undefined) ? '' : String(v).trim(); }
+function legStr(l){
+  return [fmtTime(l.start)+(l.end?'–'+fmtTime(l.end):''), (l.from||'?')+' → '+(l.to||'?'), l.mode||'', '₹'+(Number(l.amount)||0)].filter(Boolean).join(' · ');
+}
+function entrySummary(e){
+  const tot = e.legs.reduce((s,l)=>s+(Number(l.amount)||0),0);
+  return `${e.customerName||'(no customer)'} · ${e.legs.length} leg${e.legs.length>1?'s':''} · ₹${tot}`;
+}
+function diffEntries(a, b){
+  const out = [];
+  if(norm(a.date)!==norm(b.date)) out.push({field:'Date', old:a.date, nw:b.date});
+  if(norm(a.customerName)!==norm(b.customerName)) out.push({field:'Customer', old:a.customerName, nw:b.customerName});
+  if(norm(a.soNumber)!==norm(b.soNumber)) out.push({field:'SO Number', old:a.soNumber, nw:b.soNumber});
+  if(norm(a.project)!==norm(b.project)) out.push({field:'Project', old:a.project, nw:b.project});
+  const n = Math.max(a.legs.length, b.legs.length);
+  for(let i=0;i<n;i++){
+    const x=a.legs[i], y=b.legs[i];
+    if(!x){ out.push({field:`Leg ${i+1}`, old:'', nw:'added: '+legStr(y)}); continue; }
+    if(!y){ out.push({field:`Leg ${i+1}`, old:legStr(x), nw:'removed'}); continue; }
+    for(const k of Object.keys(FIELD_LABELS)){
+      const p = k==='amount' ? String(Number(x[k])||0) : norm(x[k]);
+      const q = k==='amount' ? String(Number(y[k])||0) : norm(y[k]);
+      if(p!==q) out.push({field:`Leg ${i+1} · ${FIELD_LABELS[k]}`, old:norm(x[k]), nw:norm(y[k])});
+    }
+  }
+  return out;
+}
+async function logChanges(rows, source){
+  if(!rows || !rows.length) return;
+  const batch = uid('b');
+  const payload = rows.map(r=>({...r, source, batch_id:batch, user_id:viewingAsUserId}));
+  try{
+    for(let i=0;i<payload.length;i+=200){
+      const { error } = await sb.from('change_log').insert(payload.slice(i,i+200));
+      if(error) throw error;
+    }
+  }catch(e){
+    console.error(e);
+    if(!logWarned){ logWarned = true; toast('Change Log is not set up yet — run the "Change Log" SQL once (see README).'); }
+  }
+}
+async function loadChangeLog(){
+  const { data, error } = await sb.from('change_log').select('*').eq('user_id', viewingAsUserId).order('at',{ascending:false}).limit(500);
+  if(error){ document.getElementById('logWrap').innerHTML = '<div class="empty">Change Log is not set up yet. Run <b>supabase-changelog-upgrade.sql</b> in the Supabase SQL Editor once.</div>'; return; }
+  changeLog = data||[];
+  renderChangeLog();
+}
+function renderChangeLog(){
+  const src = document.getElementById('log_source').value;
+  const q = document.getElementById('log_q').value.trim().toLowerCase();
+  const rows = changeLog.filter(r=>{
+    if(src && r.source!==src) return false;
+    if(q && !([r.entry_date,r.field,r.old_value,r.new_value,r.action].join(' ').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  const wrap = document.getElementById('logWrap');
+  if(!rows.length){ wrap.innerHTML = '<div class="empty">No changes recorded yet.</div>'; return; }
+  const srcName = {manual:'Manual',repeat:'Repeat',bulk:'Bulk Edit',import:'Excel import',cleanup:'Month cleanup'};
+  wrap.innerHTML = `<table class="months" style="min-width:700px"><thead><tr><th>When</th><th>Action</th><th>Entry date</th><th>Field</th><th>Old</th><th>New</th><th>Source</th></tr></thead><tbody>` +
+    rows.map(r=>`<tr>
+      <td>${new Date(r.at).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+      <td><span class="badge ${r.action==='created'?'green':r.action==='deleted'?'red':''}">${esc(r.action)}</span></td>
+      <td>${r.entry_date?esc(fmtDate(r.entry_date)):''}</td><td>${esc(r.field)}</td>
+      <td class="old" style="${r.old_value?'':'text-decoration:none'}">${esc(r.old_value)}</td><td class="new">${esc(r.new_value)}</td>
+      <td><span class="badge grey">${esc(srcName[r.source]||r.source||'')}</span></td></tr>`).join('') + '</tbody></table>';
+}
+
+/* =====================================================================
+   REPEAT FOR A DATE RANGE
+   ===================================================================== */
+function toggleRepeat(){
+  const on = document.getElementById('rep_on').checked;
+  document.getElementById('repeatOpts').style.display = on ? 'block' : 'none';
+  if(on){
+    const to = document.getElementById('rep_to');
+    if(!to.value){
+      const d = new Date(document.getElementById('f_date').value+'T00:00:00');
+      d.setDate(d.getDate()+6);
+      to.value = ymd(d);
+    }
+  }
+  updateRepeatPreview();
+}
+function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function repeatDates(){
+  const from = document.getElementById('f_date').value;
+  const to = document.getElementById('rep_to').value;
+  if(!from || !to || to<from) return [];
+  const skipSun = document.getElementById('rep_sun').checked;
+  const skipSat = document.getElementById('rep_sat').checked;
+  const skipEx = document.getElementById('rep_ex').checked;
+  const existing = new Set(entries.map(e=>e.date));
+  const out = [];
+  const d = new Date(from+'T00:00:00'); const end = new Date(to+'T00:00:00');
+  let guard = 0;
+  while(d<=end && guard++<93){
+    const dow = d.getDay(); const s = ymd(d);
+    if(!(skipSun&&dow===0) && !(skipSat&&dow===6) && !(skipEx&&existing.has(s))) out.push(s);
+    d.setDate(d.getDate()+1);
+  }
+  return out;
+}
+function updateRepeatPreview(){
+  const el = document.getElementById('repPreview');
+  if(!document.getElementById('rep_on').checked){ el.textContent=''; return; }
+  const ds = repeatDates();
+  if(!ds.length){ el.textContent = 'No dates selected — check the "until" date.'; return; }
+  el.innerHTML = `<b>${ds.length} entr${ds.length>1?'ies':'y'}</b> will be created: ` + ds.map(fmtDate).join(', ');
+}
+async function saveRepeated(baseRow){
+  const ds = repeatDates();
+  if(!ds.length){ toast('No dates to create — check the date range'); return; }
+  if(ds.length>62 && !confirm(`Create ${ds.length} entries?`)) return;
+  if(pendingFiles.length && !confirm('Attached evidence is NOT copied to repeated entries. Continue without it?')) return;
+  const rows = ds.map(d=>({ id: uid('e'), date:d, customer_name: baseRow.customer_name, so_number: baseRow.so_number, project: baseRow.project, legs: baseRow.legs, user_id: viewingAsUserId }));
+  await syncCustomerAndRoutes(baseRow.customer_name, baseRow.so_number, baseRow.legs);
+  const { error } = await sb.from('entries').insert(rows);
+  if(error){ toast('Save failed: '+error.message); return; }
+  await logChanges(rows.map(r=>({action:'created',entry_id:r.id,entry_date:r.date,field:'Entry',old_value:'',new_value:entrySummary({customerName:r.customer_name,legs:r.legs})})),'repeat');
+  await loadEntries();
+  document.getElementById('rep_on').checked = false;
+  resetEntryForm(); toggleRepeat();
+  renderMonth(); renderDashboard();
+  toast(`${rows.length} entries created — adjust amounts here`);
+  const d0 = new Date(ds[0]+'T00:00:00');
+  bulkTarget = {m:d0.getMonth(), y:d0.getFullYear()};
+  document.querySelector('.tab[data-tab="bulk"]').click();
+}
+
+/* =====================================================================
+   BULK EDIT GRID
+   ===================================================================== */
+const G_COLS = [
+  ['date','Date','date'],['customer','Customer','text'],['so','SO No.','text'],['start','Start','time'],['end','End','time'],
+  ['from','From','text'],['to','To','text'],['mode','Mode','mode'],['distance','Km','text'],['rate','Rate/km','text'],['amount','Amount ₹','text']
+];
+const G_FIELDS = ['date','customer','so','start','end','from','to','mode','distance','rate','amount'];
+let gridRows = [];
+let gridFocus = null;
+let bulkReady = false;
+let bulkTarget = null;
+
+function openBulk(){
+  if(!bulkReady){
+    const names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    document.getElementById('bulk_month').innerHTML = names.map((n,i)=>`<option value="${i}">${n}</option>`).join('');
+    document.getElementById('bulk_month').value = document.getElementById('monthSel').value;
+    const ys = document.getElementById('yearSel').innerHTML;
+    document.getElementById('bulk_year').innerHTML = ys;
+    document.getElementById('bulk_year').value = document.getElementById('yearSel').value;
+    document.getElementById('bulk_field').innerHTML = G_COLS.filter(c=>c[0]!=='date'&&c[0]!=='customer').map(c=>`<option value="${c[0]}">${c[1]}</option>`).join('') +
+      '<option value="customer">Customer</option><option value="date">Date</option>';
+    bulkReady = true;
+    initGridEvents();
+    if(bulkTarget){ document.getElementById('bulk_month').value=bulkTarget.m; document.getElementById('bulk_year').value=bulkTarget.y; bulkTarget=null; }
+    loadBulkGrid(true);
+    return;
+  }
+  if(bulkTarget){
+    document.getElementById('bulk_month').value=bulkTarget.m; document.getElementById('bulk_year').value=bulkTarget.y; bulkTarget=null;
+    loadBulkGrid(true); return;
+  }
+  if(!gridDirty()) loadBulkGrid(true);
+}
+function bulkKey(){
+  const m = parseInt(document.getElementById('bulk_month').value,10);
+  const y = parseInt(document.getElementById('bulk_year').value,10);
+  return y+'-'+String(m+1).padStart(2,'0');
+}
+let bulkPrevMonth = null;
+function bulkMonthChanged(){
+  if(gridDirty() && !confirm('You have unsaved changes in this grid. Discard them and switch month?')){
+    if(bulkPrevMonth){ document.getElementById('bulk_month').value = bulkPrevMonth.m; document.getElementById('bulk_year').value = bulkPrevMonth.y; }
+    return;
+  }
+  loadBulkGrid(true);
+}
+function rowFromLeg(e, l, i){
+  const r = {entryId:e.id, first:i===0, date:e.date, customer:e.customerName||'', so:e.soNumber||'', project:e.project||'',
+    start:l.start||'', end:l.end||'', from:l.from||'', to:l.to||'', mode:l.mode||'Auto',
+    distance:norm(l.distance), rate:norm(l.rate), amount: (l.amount===undefined||l.amount===null)?'':String(l.amount), sel:false};
+  r.o = {}; G_FIELDS.forEach(f=>r.o[f]=r[f]);
+  return r;
+}
+function loadBulkGrid(force){
+  const key = bulkKey();
+  bulkPrevMonth = {m:document.getElementById('bulk_month').value, y:document.getElementById('bulk_year').value};
+  gridRows = [];
+  entries.filter(e=>e.date.startsWith(key)).sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
+    e.legs.forEach((l,i)=>gridRows.push(rowFromLeg(e,l,i)));
+  });
+  gridFocus = null;
+  renderGrid();
+}
+function cellDirty(row, f){ return !row.o || norm(row[f])!==norm(row.o[f]); }
+function gridDirty(){
+  if(!bulkReady) return false;
+  const key = bulkKey();
+  const origIds = entries.filter(e=>e.date.startsWith(key)).reduce((n,e)=>n+e.legs.length,0);
+  if(origIds!==gridRows.length) return true;
+  return gridRows.some(r=>G_FIELDS.some(f=>cellDirty(r,f)));
+}
+function renderGrid(){
+  const wrap = document.getElementById('gridWrap');
+  if(!gridRows.length){
+    wrap.innerHTML = '<div class="empty">No entries for this month. Use "+ Row" to add one.</div>';
+    return;
+  }
+  let html = '<table class="xl"><thead><tr><th style="width:34px"><input type="checkbox" onchange="toggleAllRows(this.checked)" style="width:auto"></th>' +
+    G_COLS.map(c=>`<th>${c[1]}</th>`).join('') + '<th></th></tr></thead><tbody>';
+  gridRows.forEach((r,i)=>{
+    const isNew = !r.o;
+    html += `<tr class="${r.sel?'sel':''} ${isNew?'newrow':''}" data-r="${i}"><td class="rn"><input type="checkbox" style="width:auto" ${r.sel?'checked':''} onchange="toggleRow(${i},this.checked)"></td>`;
+    G_COLS.forEach(([f,,type])=>{
+      const dis = !r.first && (f==='date'||f==='customer'||f==='so');
+      const cls = (cellDirty(r,f)&&!isNew?'dirty':'') + (isNew?'dirty':'') + (dis?' dis':'');
+      let inner;
+      if(type==='mode'){
+        const opts = allModes().includes(r.mode)||!r.mode ? allModes() : [...allModes(), r.mode];
+        inner = `<select data-r="${i}" data-f="${f}">${opts.map(m=>`<option ${m===r.mode?'selected':''}>${esc(m)}</option>`).join('')}</select>`;
+      } else {
+        inner = `<input type="${type==='text'?'text':type}" value="${esc(r[f])}" data-r="${i}" data-f="${f}" ${dis?'disabled':''} ${f==='amount'||f==='distance'||f==='rate'?'inputmode="decimal" style="text-align:right"':''}>`;
+      }
+      html += `<td class="${cls}" data-cell="${f}">${inner}</td>`;
+    });
+    html += `<td class="rn"><button class="btn ghost small" title="Add another leg to this day" onclick="addLegBelow(${i})">+leg</button></td></tr>`;
+  });
+  html += `</tbody><tfoot><tr><td colspan="${G_COLS.length}" style="text-align:right">Total (₹)</td><td colspan="2" id="gridTotal">${money(gridTotal())}</td></tr></tfoot></table>`;
+  wrap.innerHTML = html;
+}
+function gridTotal(){ return gridRows.reduce((s,r)=>s+(parseFloat(r.amount)||0),0); }
+function toggleRow(i,v){ gridRows[i].sel=v; const tr=document.querySelector(`#gridWrap tr[data-r="${i}"]`); if(tr) tr.classList.toggle('sel',v); }
+function toggleAllRows(v){ gridRows.forEach(r=>r.sel=v); renderGrid(); }
+
+function refreshCell(i,f){
+  const td = document.querySelector(`#gridWrap tr[data-r="${i}"] td[data-cell="${f}"]`);
+  if(!td) return;
+  const r = gridRows[i];
+  td.classList.toggle('dirty', cellDirty(r,f));
+  const inp = td.querySelector('input,select');
+  if(inp && inp.value!==r[f]) inp.value = r[f];
+}
+function setGridValue(i,f,raw){
+  const r = gridRows[i]; if(!r) return false;
+  if((f==='date'||f==='customer'||f==='so') && !r.first) return false;
+  let v = raw;
+  if(f==='date'){ v = parseDateAny(raw) || ''; if(!v) return false; }
+  else if(f==='start'||f==='end'){ v = raw===''?'':(parseTimeAny(raw)||''); if(raw!==''&&!v) return false; }
+  else if(f==='mode'){ const m = allModes().find(x=>x.toLowerCase()===norm(raw).toLowerCase()); v = m||norm(raw); }
+  else if(f==='amount'||f==='distance'||f==='rate'){ v = norm(raw).replace(/[^\d.\-]/g,''); }
+  else v = norm(raw);
+  r[f]=v;
+  if(f==='date'||f==='customer'||f==='so'){ gridRows.forEach((x,j)=>{ if(x.entryId===r.entryId && j!==i){ x[f]=v; refreshCell(j,f);} }); }
+  refreshCell(i,f);
+  return true;
+}
+function initGridEvents(){
+  const wrap = document.getElementById('gridWrap');
+  wrap.addEventListener('change', e=>{
+    const t=e.target; if(!t.dataset||t.dataset.r===undefined||!t.dataset.f) return;
+    const ok = setGridValue(+t.dataset.r, t.dataset.f, t.value);
+    if(!ok) refreshCell(+t.dataset.r, t.dataset.f);
+    document.getElementById('gridTotal').textContent = money(gridTotal());
+  });
+  wrap.addEventListener('focusin', e=>{ const t=e.target; if(t.dataset&&t.dataset.r!==undefined&&t.dataset.f) gridFocus={r:+t.dataset.r,f:t.dataset.f}; });
+  wrap.addEventListener('keydown', e=>{
+    const t=e.target; if(!t.dataset||t.dataset.r===undefined||!t.dataset.f) return;
+    if(t.tagName==='SELECT') return;
+    let dr = 0;
+    if(e.key==='Enter') dr = e.shiftKey?-1:1;
+    else if(e.key==='ArrowDown' && t.type==='text') dr = 1;
+    else if(e.key==='ArrowUp' && t.type==='text') dr = -1;
+    if(!dr) return;
+    e.preventDefault();
+    t.dispatchEvent(new Event('change',{bubbles:true}));
+    const nx = wrap.querySelector(`[data-r="${+t.dataset.r+dr}"][data-f="${t.dataset.f}"]`);
+    if(nx && !nx.disabled){ nx.focus(); if(nx.select) nx.select(); }
+  });
+  wrap.addEventListener('paste', e=>{
+    const t=e.target; if(!t.dataset||t.dataset.r===undefined||!t.dataset.f) return;
+    const text = (e.clipboardData||window.clipboardData).getData('text');
+    if(!/[\t\n]/.test(text.trim())) return; // single value: normal paste
+    e.preventDefault();
+    const lines = text.replace(/\r/g,'').replace(/\n+$/,'').split('\n').map(l=>l.split('\t'));
+    const c0 = G_FIELDS.indexOf(t.dataset.f), r0 = +t.dataset.r;
+    let skipped = 0, set = 0;
+    lines.forEach((cells,ri)=>{
+      cells.forEach((val,ci)=>{
+        const f = G_FIELDS[c0+ci], row = r0+ri;
+        if(!f || row>=gridRows.length){ skipped++; return; }
+        if(setGridValue(row,f,val.trim())) set++; else skipped++;
+      });
+    });
+    document.getElementById('gridTotal').textContent = money(gridTotal());
+    toast(`Pasted ${set} cell${set!==1?'s':''}`+(skipped?` (${skipped} skipped — outside grid or invalid)`:''));
+  });
+}
+function selectedIdx(){ return gridRows.map((r,i)=>r.sel?i:-1).filter(i=>i>=0); }
+function fillDown(){
+  if(!gridFocus){ toast('Click a cell first, then use Fill down'); return; }
+  const {r,f} = gridFocus; const src = gridRows[r][f];
+  let targets = selectedIdx().filter(i=>i!==r);
+  if(!targets.length) targets = gridRows.map((_,i)=>i).filter(i=>i>r);
+  let n=0; targets.forEach(i=>{ if(setGridValue(i,f,src)) n++; });
+  document.getElementById('gridTotal').textContent = money(gridTotal());
+  toast(`Filled ${n} row${n!==1?'s':''}`);
+}
+function applyToSelected(){
+  const f = document.getElementById('bulk_field').value;
+  const v = document.getElementById('bulk_value').value;
+  const idx = selectedIdx();
+  if(!idx.length){ toast('Tick the rows you want to change first'); return; }
+  let n=0; idx.forEach(i=>{ if(setGridValue(i,f,v)) n++; });
+  document.getElementById('gridTotal').textContent = money(gridTotal());
+  toast(`Updated ${n} row${n!==1?'s':''}`);
+}
+function addGridRow(){
+  const last = gridRows[gridRows.length-1];
+  const key = bulkKey();
+  const r = {entryId:'n_'+uid('x'), first:true, date: last? last.date : key+'-01', customer: last? last.customer:'', so: last? last.so:'', project: profile.project||'',
+    start:'',end:'',from:'',to:'',mode:'Auto',distance:'',rate:'',amount:'',sel:false, o:null};
+  gridRows.push(r); renderGrid();
+  const wrap = document.getElementById('gridWrap'); wrap.parentElement.scrollTop = wrap.parentElement.scrollHeight;
+}
+function addLegBelow(i){
+  const r = gridRows[i];
+  let at = i; while(gridRows[at+1] && gridRows[at+1].entryId===r.entryId) at++;
+  const src = gridRows[at];
+  gridRows.splice(at+1,0,{entryId:r.entryId, first:false, date:r.date, customer:r.customer, so:r.so, project:r.project,
+    start:'',end:'',from:src.to||'',to:src.from||'',mode:src.mode,distance:'',rate:'',amount:'',sel:false,o:null});
+  renderGrid();
+}
+function deleteSelectedRows(){
+  const idx = selectedIdx();
+  if(!idx.length){ toast('Tick the rows to remove first'); return; }
+  if(!confirm(`Remove ${idx.length} row${idx.length>1?'s':''}? Nothing is deleted until you click "Save changes".`)) return;
+  gridRows = gridRows.filter(r=>!r.sel);
+  const seen = new Set();
+  gridRows.forEach(r=>{ r.first = !seen.has(r.entryId); seen.add(r.entryId); });
+  renderGrid();
+}
+function validDateStr(s){ return /^\d{4}-\d{2}-\d{2}$/.test(s); }
+function gridToEntries(){
+  const map = new Map(); const order=[];
+  gridRows.forEach(r=>{ if(!map.has(r.entryId)){ map.set(r.entryId,[]); order.push(r.entryId);} map.get(r.entryId).push(r); });
+  const out=[]; const problems=[];
+  order.forEach(id=>{
+    const rows = map.get(id), f = rows[0];
+    const legs = rows.filter(r=>r.from||r.to||r.amount||r.start).map(r=>normLeg(r));
+    if(!validDateStr(f.date)){ problems.push('A row has no valid date'); return; }
+    if(!legs.length){ problems.push(`${fmtDate(f.date)}: no journey details`); return; }
+    out.push({id, date:f.date, customerName:f.customer, soNumber:f.so||'', project:f.project||'', legs});
+  });
+  return {list:out, problems};
+}
+function normLeg(r){
+  return {start:r.start||'', end:r.end||'', from:r.from||'', to:r.to||'', mode:r.mode||'Auto',
+    distance:norm(r.distance), rate:norm(r.rate), amount:parseFloat(r.amount)||0};
+}
+async function applyEntryChanges(newList, source, deleteIds){
+  // returns number applied
+  const logs = []; const upserts = [];
+  for(const ne of newList){
+    const old = entries.find(e=>e.id===ne.id);
+    if(old){
+      const d = diffEntries(old,ne);
+      if(!d.length) continue;
+      d.forEach(x=>logs.push({action:'edited',entry_id:ne.id,entry_date:ne.date,field:x.field,old_value:x.old,new_value:x.nw}));
+    } else {
+      logs.push({action:'created',entry_id:ne.id,entry_date:ne.date,field:'Entry',old_value:'',new_value:entrySummary(ne)});
+    }
+    upserts.push({id:ne.id,date:ne.date,customer_name:ne.customerName,so_number:ne.soNumber||'',project:ne.project||'',legs:ne.legs,user_id:viewingAsUserId});
+  }
+  if(upserts.length){
+    const { error } = await sb.from('entries').upsert(upserts);
+    if(error){ toast('Save failed: '+error.message); return -1; }
+  }
+  for(const id of (deleteIds||[])){
+    const e = entries.find(x=>x.id===id); if(!e) continue;
+    const linked = evidence.filter(ev=>ev.entryId===id);
+    if(linked.length) await sb.storage.from(EVIDENCE_BUCKET).remove(linked.map(ev=>ev.storagePath));
+    const { error } = await sb.from('entries').delete().eq('id',id);
+    if(error){ toast('Delete failed: '+error.message); continue; }
+    logs.push({action:'deleted',entry_id:id,entry_date:e.date,field:'Entry',old_value:entrySummary(e),new_value:''});
+  }
+  await logChanges(logs, source);
+  await loadEntries(); await loadEvidence();
+  renderMonth(); renderEvidenceGrid(); renderDashboard();
+  return upserts.length + (deleteIds||[]).length;
+}
+async function saveGrid(){
+  const {list, problems} = gridToEntries();
+  if(problems.length){ alert('Fix these first:\n\n'+[...new Set(problems)].join('\n')); return; }
+  const key = bulkKey();
+  const keepIds = new Set(list.map(e=>e.id));
+  const deleteIds = entries.filter(e=>e.date.startsWith(key) && !keepIds.has(e.id)).map(e=>e.id);
+  let changed=0, created=0;
+  list.forEach(ne=>{ const old=entries.find(e=>e.id===ne.id); if(!old) created++; else if(diffEntries(old,ne).length) changed++; });
+  if(!changed && !created && !deleteIds.length){ toast('No changes to save'); return; }
+  const withEv = deleteIds.filter(id=>evidence.some(ev=>ev.entryId===id)).length;
+  const msg = `Save: ${changed} changed, ${created} new, ${deleteIds.length} deleted.` + (withEv?`\n\n${withEv} deleted entr${withEv>1?'ies have':'y has'} evidence that will also be removed.`:'');
+  if(!confirm(msg)) return;
+  const n = await applyEntryChanges(list,'bulk',deleteIds);
+  if(n>=0){ toast('Changes saved'); loadBulkGrid(true); }
+}
+
+/* =====================================================================
+   EXCEL IMPORT
+   ===================================================================== */
+function parseDateAny(v){
+  if(v===null||v===undefined||v==='') return null;
+  if(v instanceof Date){ return isNaN(v) ? null : v.getUTCFullYear()+'-'+String(v.getUTCMonth()+1).padStart(2,'0')+'-'+String(v.getUTCDate()).padStart(2,'0'); }
+  if(typeof v==='number'){ const d=new Date(Math.round((v-25569)*86400000)); return parseDateAny(d); }
+  const s = String(v).trim();
+  let m;
+  if((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  if((m = s.match(/^(\d{1,2})[\/\-. ]([A-Za-z]{3})[A-Za-z]*[\/\-. ,]*(\d{2,4})$/))){
+    const mi = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[2].toLowerCase());
+    if(mi<0) return null;
+    const y = m[3].length===2 ? '20'+m[3] : m[3];
+    return `${y}-${String(mi+1).padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  if((m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/))){
+    const y = m[3].length===2 ? '20'+m[3] : m[3];
+    return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; // day first (Indian format)
+  }
+  return null;
+}
+function parseTimeAny(v){
+  if(v===null||v===undefined||v==='') return null;
+  const hm = (h,mi)=> (h>=0&&h<24&&mi>=0&&mi<60) ? String(h).padStart(2,'0')+':'+String(mi).padStart(2,'0') : null;
+  if(v instanceof Date){ return isNaN(v)?null:hm(v.getUTCHours(),v.getUTCMinutes()); }
+  if(typeof v==='number'){ const f = v - Math.floor(v); const tot = Math.round(f*1440); return hm(Math.floor(tot/60)%24, tot%60); }
+  const s = String(v).trim();
+  const m = s.match(/^(\d{1,2})[:.](\d{2})(?::\d{2})?\s*([AaPp])?\.?[Mm]?\.?$/);
+  if(!m) return null;
+  let h = +m[1]; const mi = +m[2];
+  if(m[3]){ const pm = m[3].toLowerCase()==='p'; if(h===12) h = pm?12:0; else if(pm) h+=12; if(+m[1]>12||+m[1]===0) return null; }
+  return hm(h,mi);
+}
+function xv(cell){
+  if(!cell || cell.type===ExcelJS.ValueType.Merge) return null;
+  let v = cell.value;
+  if(v && typeof v==='object' && !(v instanceof Date)){
+    if('result' in v) v = v.result;
+    else if(v.richText) v = v.richText.map(t=>t.text).join('');
+    else if('text' in v) v = v.text;
+    else v = null;
+  }
+  if(v && typeof v==='object' && !(v instanceof Date)) v = null; // error objects etc.
+  return (v===undefined||v===''||v===null) ? null : v;
+}
+function numStr(v){
+  if(v===null) return '';
+  if(typeof v==='number') return String(Math.round(v*1000)/1000);
+  const m = String(v).replace(/,/g,'').match(/-?\d+(\.\d+)?/);
+  return m ? m[0] : '';
+}
+async function importExcel(file){
+  if(!file) return;
+  const box = document.getElementById('importPreview');
+  box.innerHTML = '<div class="note">Reading file…</div>';
+  let ws;
+  try{
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await file.arrayBuffer());
+    ws = wb.getWorksheet('Claim Details') || wb.getWorksheet('Sheet1') || wb.worksheets[0];
+  }catch(err){ console.error(err); box.innerHTML = '<div class="warn-box">Could not read this file. Please choose the .xlsx exported from this tracker.</div>'; return; }
+  if(!ws){ box.innerHTML = '<div class="warn-box">No sheet found in this file.</div>'; return; }
+
+  const warns = []; const blocks = []; let cur = null;
+  for(let r=13; r<=ws.rowCount; r++){
+    const row = ws.getRow(r);
+    const A = xv(row.getCell(1));
+    if(typeof A==='string' && /^(total|claim by)/i.test(A.trim())) break;
+    const B=xv(row.getCell(2)), C=xv(row.getCell(3)), D=xv(row.getCell(4)), E=xv(row.getCell(5)),
+          F=xv(row.getCell(6)), SO=xv(row.getCell(7)), G=xv(row.getCell(8)), H=xv(row.getCell(9)), I=xv(row.getCell(10)), J=xv(row.getCell(11)), L=xv(row.getCell(13));
+    const empty = [A,B,C,D,E,F,SO,G,H,I,J].every(x=>x===null);
+    if(empty){ cur=null; continue; }
+    if(A!==null){
+      const d = parseDateAny(A);
+      if(!d){ warns.push(`Row ${r}: date "${A}" not recognised — this entry was skipped`); cur = {bad:true}; continue; }
+      cur = {row:r, date:d, customer: F!==null?String(F).trim():'', so: SO!==null?String(SO).trim():'', id: L!==null?String(L).trim():'', legs:[]};
+      blocks.push(cur);
+    }
+    if(!cur){ warns.push(`Row ${r}: data outside an entry (no date above it) — skipped`); continue; }
+    if(cur.bad) continue;
+    if(!cur.customer && F!==null) cur.customer = String(F).trim();
+    if(!cur.so && SO!==null) cur.so = String(SO).trim();
+    const st = parseTimeAny(B), en = parseTimeAny(C);
+    if(B!==null && !st) warns.push(`Row ${r}: start time "${B}" not recognised — left blank`);
+    if(C!==null && !en) warns.push(`Row ${r}: end time "${C}" not recognised — left blank`);
+    let mode = G!==null ? String(G).trim() : '';
+    const mm = allModes().find(x=>x.toLowerCase()===mode.toLowerCase()); if(mm) mode = mm; else if(mode) warns.push(`Row ${r}: mode "${mode}" is not one of the standard modes`);
+    const amt = J===null ? 0 : (parseFloat(String(J).replace(/,/g,''))||0);
+    if(J!==null && isNaN(parseFloat(String(J).replace(/,/g,'')))) warns.push(`Row ${r}: amount "${J}" is not a number — treated as 0`);
+    const leg = {start:st||'', end:en||'', from:D!==null?String(D).trim():'', to:E!==null?String(E).trim():'', mode:mode||'Auto', distance:numStr(H), rate:numStr(I), amount:amt};
+    if(leg.from||leg.to||leg.start||leg.amount) cur.legs.push(leg);
+  }
+  const good = blocks.filter(b=>b.legs.length);
+  if(!good.length){ box.innerHTML = '<div class="warn-box">No journey rows found in this file. '+(warns.length?esc(warns[0]):'')+'</div>'; return; }
+
+  // match with existing entries
+  const usedIds = new Set(); const items = [];
+  good.forEach(b=>{
+    let id = b.id; let old = id ? entries.find(e=>e.id===id) : null;
+    if(old && usedIds.has(id)){ warns.push(`Row ${b.row}: this entry appears twice in the file — the second copy will be imported as a new entry`); old=null; }
+    if(old){
+      usedIds.add(id);
+      const ne = {id, date:b.date, customerName:b.customer, soNumber:b.so||'', project:old.project||'', legs:b.legs};
+      const d = diffEntries(old,ne);
+      items.push({type: d.length?'changed':'same', old, ne, diffs:d});
+    } else {
+      items.push({type:'new', ne:{id:uid('e'), date:b.date, customerName:b.customer, soNumber:b.so||'', project:profile.project||'', legs:b.legs}});
+    }
+  });
+  const months = new Set(good.map(b=>b.date.slice(0,7)));
+  const missing = entries.filter(e=>months.has(e.date.slice(0,7)) && !usedIds.has(e.id));
+  window._importItems = items;
+  renderImportPreview(items, missing, warns);
+}
+function renderImportPreview(items, missing, warns){
+  const box = document.getElementById('importPreview');
+  const ch = items.filter(i=>i.type==='changed'), nw = items.filter(i=>i.type==='new'), same = items.filter(i=>i.type==='same');
+  let html = `<div class="card" style="border-color:var(--blue);background:#fbfdff"><h2>Import preview</h2>
+    <div class="note" style="margin:0 0 8px"><span class="badge">${ch.length} changed</span> <span class="badge green">${nw.length} new</span> <span class="badge grey">${same.length} unchanged</span> ${missing.length?`<span class="badge red">${missing.length} in portal but not in file (kept)</span>`:''}</div>`;
+  if(warns.length) html += `<div class="warn-box"><b>Check these:</b><br>${[...new Set(warns)].slice(0,15).map(esc).join('<br>')}${warns.length>15?'<br>…':''}</div>`;
+  items.forEach((it,i)=>{
+    if(it.type==='same') return;
+    html += `<div class="diff-card"><label class="chk"><input type="checkbox" checked data-imp="${i}"> ${it.type==='new'?'<span class="badge green">New</span>':'<span class="badge">Changed</span>'} ${esc(fmtDate(it.ne.date))} — ${esc(it.ne.customerName||'(no customer)')}</label>`;
+    if(it.type==='new') html += `<div class="note">${it.ne.legs.map(l=>esc(legStr(l))).join('<br>')}</div>`;
+    else html += `<table><tr><th style="width:30%">Field</th><th>Old</th><th>New</th></tr>${it.diffs.map(d=>`<tr><td>${esc(d.field)}</td><td class="old">${esc(d.old)}</td><td class="new">${esc(d.nw)}</td></tr>`).join('')}</table>`;
+    html += '</div>';
+  });
+  if(!ch.length && !nw.length) html += '<div class="empty">The file matches the portal — nothing to import.</div>';
+  if(missing.length) html += `<div class="note">Not in the file (left untouched): ${missing.slice(0,8).map(e=>esc(fmtDate(e.date)+' '+(e.customerName||''))).join(', ')}${missing.length>8?'…':''}. To remove entries, delete them in the portal.</div>`;
+  html += `<div style="margin-top:10px;display:flex;gap:8px">${(ch.length||nw.length)?'<button class="btn" onclick="applyImport()">Apply selected changes</button>':''}<button class="btn ghost" onclick="document.getElementById(\'importPreview\').innerHTML=\'\'">Close</button></div></div>`;
+  box.innerHTML = html;
+  box.scrollIntoView({behavior:'smooth',block:'start'});
+}
+async function applyImport(){
+  const picks = [...document.querySelectorAll('#importPreview input[data-imp]:checked')].map(c=>window._importItems[+c.dataset.imp]);
+  if(!picks.length){ toast('Nothing selected'); return; }
+  const n = await applyEntryChanges(picks.map(p=>p.ne),'import',[]);
+  if(n>=0){
+    document.getElementById('importPreview').innerHTML = '';
+    toast(`Imported ${n} entr${n>1?'ies':'y'}. See Change Log for details.`);
+    loadBulkGrid(true);
   }
 }
 
