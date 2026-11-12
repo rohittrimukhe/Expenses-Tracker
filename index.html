@@ -3038,7 +3038,7 @@ async function downloadMonthEvidenceZip(){
     btn.textContent = `Preparing ${++done} of ${items.length}…`;
     const [yy,mm,dd] = entry.date.split('-');
     const folder = `${dd}-${mons[+mm-1]}-${yy}`;
-    let base = safeName([entry.customerName, ev.tag, ev.fileName].filter(Boolean).join(' - ')) || 'file';
+    let base = safeName([folder, entry.customerName, ev.tag, ev.fileName].filter(Boolean).join(' - ')) || 'file';
     let name = base, i = 2;
     while(used.has(folder+'/'+name.toLowerCase())){
       const dot = base.lastIndexOf('.');
