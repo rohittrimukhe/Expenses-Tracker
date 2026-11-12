@@ -1697,6 +1697,7 @@ async function saveEntry(){
   toast('Entry saved');
   await loadEntries(); await loadEvidence();
   resetEntryForm();
+  showMonthOf(date);
   renderMonth(); renderEvidenceGrid(); renderDashboard(); renderCustomerDirectory();
 }
 
@@ -2436,6 +2437,12 @@ function renderChangeLog(){
 /* =====================================================================
    REPEAT FOR A DATE RANGE
    ===================================================================== */
+function showMonthOf(dateStr){
+  const d = new Date(dateStr+'T00:00:00'); if(isNaN(d)) return;
+  const ms=document.getElementById('monthSel'), ys=document.getElementById('yearSel');
+  if(![...ys.options].some(o=>+o.value===d.getFullYear())) ys.add(new Option(d.getFullYear(), d.getFullYear()));
+  ms.value = d.getMonth(); ys.value = d.getFullYear();
+}
 let repSel = new Set();
 let repView = null; // {y,m}
 function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -2511,6 +2518,7 @@ async function saveRepeated(baseRow){
   await loadEntries();
   document.getElementById('rep_on').checked = false;
   resetEntryForm(); toggleRepeat();
+  showMonthOf(ds[0]);
   renderMonth(); renderDashboard();
   toast(`${rows.length} entries created — adjust amounts here`);
   const d0 = new Date(ds[0]+'T00:00:00');
