@@ -725,6 +725,7 @@ const ICON_PATHS = {
   download: '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
   pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   refresh: '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>',
   wallet: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16" cy="14" r="1"/>',
@@ -1714,6 +1715,27 @@ async function deleteEntry(id){
   toast('Entry deleted');
 }
 
+function copyEntry(id){
+  const e = entries.find(x=>x.id===id);
+  if(!e) return;
+  document.querySelector('.tab[data-tab="entry"]').click();
+  resetEntryForm();
+  document.getElementById('entryFormTitle').textContent = 'Copy of ' + fmtDate(e.date) + ' — pick the new dates';
+  document.getElementById('f_date').value = e.date;
+  document.getElementById('f_customer').value = e.customerName||'';
+  document.getElementById('f_so_number').value = e.soNumber||'';
+  document.getElementById('f_project').value = e.project||'';
+  currentLegs = e.legs.map(l=>({...l}));
+  pendingFiles = [];
+  renderLegs(); renderPendingChips();
+  const cb = document.getElementById('rep_on'); cb.checked = true; toggleRepeat();
+  repSel = new Set();                       // start empty: the source day already has this entry
+  const d = new Date(e.date+'T00:00:00'); repView = {y:d.getFullYear(), m:d.getMonth()};
+  repCalRender(); updateRepeatPreview();
+  document.getElementById('repeatBox').scrollIntoView({behavior:'smooth',block:'center'});
+  toast('Tap the dates to copy this entry to');
+}
+
 function editEntry(id){
   const e = entries.find(x=>x.id===id);
   if(!e) return;
@@ -1811,6 +1833,7 @@ function renderMonth(){
           <div style="display:flex;flex-direction:column;gap:4px;min-width:82px">
             ${!e.soNumber && e.customerName? `<button class="btn ghost small" onclick="quickSetEntrySoNumber('${e.id}')">${icon('plus',12)} Add SO</button>`:''}
             <button class="btn ghost small" onclick="editEntry('${e.id}')">${icon('pencil',12)} Edit</button>
+            <button class="btn ghost small" onclick="copyEntry('${e.id}')" title="Copy this entry to other dates">${icon('copy',12)} Copy</button>
             <button class="btn danger small" onclick="deleteEntry('${e.id}')">${icon('trash',12)} Delete</button>
           </div>
         </td>`:''}
