@@ -419,6 +419,12 @@
   <div class="panel" id="panel-evidence">
     <div class="card">
       <h2><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-4 4-3-3-6 6"/></svg> Evidence Vault <span class="note" style="display:inline">(mirrors the "Evidence" sheet of the exported tracker)</span></h2>
+      <div class="bulk-bar">
+        <div class="field" style="width:140px"><label>Month</label><select id="evMonth" onchange="updateEvZipInfo()"></select></div>
+        <div class="field" style="width:100px"><label>Year</label><select id="evYear" onchange="updateEvZipInfo()"></select></div>
+        <button class="btn" id="evZipBtn" onclick="downloadMonthEvidenceZip()">Download month as ZIP</button>
+        <span class="note" id="evZipInfo" style="margin:0 0 6px"></span>
+      </div>
       <div class="ev-grid" id="evGrid"></div>
     </div>
   </div>
@@ -522,6 +528,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.7" integrity="sha384-BmlQlKlDvXvKoxkn5OQuUo/aJQCTXeB+Kls6EccBmG4Kf8AXvp89RtO9MtPxP/r5" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" integrity="sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous"></script>
 <script>
 /* ============ CONFIG — edit these before deploying ============ */
@@ -2042,6 +2049,7 @@ async function deleteMonthData(monthKey, label){
 
 /* ---------------- evidence vault ---------------- */
 function renderEvidenceGrid(){
+  updateEvZipInfo();
   const grid = document.getElementById('evGrid');
   if(evidence.length===0){ grid.innerHTML = '<div class="empty">No evidence uploaded yet.</div>'; return; }
   const sorted = [...evidence].sort((a,b)=>{
@@ -2989,6 +2997,70 @@ async function applyImport(){
     toast(`Imported ${n} entr${n>1?'ies':'y'}. See Change Log for details.`);
     loadBulkGrid(true);
   }
+}
+
+
+/* ---------------- download a month's evidence as a folder-structured ZIP ---------------- */
+function initEvZipSelectors(){
+  const ms=document.getElementById('evMonth'), ys=document.getElementById('evYear');
+  if(!ms || ms.options.length) return;
+  const names=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  ms.innerHTML = names.map((n,i)=>`<option value="${i}">${n}</option>`).join('');
+  ys.innerHTML = document.getElementById('yearSel').innerHTML;
+  ms.value = document.getElementById('monthSel').value; ys.value = document.getElementById('yearSel').value;
+}
+function evForMonth(m,y){
+  const key = y+'-'+String(m+1).padStart(2,'0');
+  return evidence.map(ev=>({ev, entry: entries.find(e=>e.id===ev.entryId)})).filter(x=>x.entry && x.entry.date.startsWith(key));
+}
+function updateEvZipInfo(){
+  initEvZipSelectors();
+  const m=+document.getElementById('evMonth').value, y=+document.getElementById('evYear').value;
+  const n = evForMonth(m,y).length;
+  document.getElementById('evZipInfo').textContent = n ? `${n} file${n>1?'s':''} in this month` : 'No evidence in this month';
+  document.getElementById('evZipBtn').disabled = !n;
+}
+function safeName(t){ return String(t||'').replace(/[\\/:*?"<>|\u0000-\u001f]/g,'_').replace(/\s+/g,' ').trim().slice(0,80); }
+async function downloadMonthEvidenceZip(){
+  if(!(await ensureSession())) return;
+  const m=+document.getElementById('evMonth').value, y=+document.getElementById('evYear').value;
+  const items = evForMonth(m,y);
+  if(!items.length){ toast('No evidence in this month'); return; }
+  const names=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const mons=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const parent = `${names[m]} ${y}`;
+  const btn = document.getElementById('evZipBtn'); const label = btn.textContent;
+  btn.disabled = true;
+  const zip = new JSZip(); const root = zip.folder(parent);
+  const used = new Set(); let done = 0, failed = 0;
+  items.sort((a,b)=>a.entry.date.localeCompare(b.entry.date) || (a.ev.uploadedAt||'').localeCompare(b.ev.uploadedAt||''));
+  for(const {ev, entry} of items){
+    btn.textContent = `Preparing ${++done} of ${items.length}…`;
+    const [yy,mm,dd] = entry.date.split('-');
+    const folder = `${dd}-${mons[+mm-1]}-${yy}`;
+    let base = safeName([entry.customerName, ev.tag, ev.fileName].filter(Boolean).join(' - ')) || 'file';
+    let name = base, i = 2;
+    while(used.has(folder+'/'+name.toLowerCase())){
+      const dot = base.lastIndexOf('.');
+      name = dot>0 ? `${base.slice(0,dot)} (${i})${base.slice(dot)}` : `${base} (${i})`; i++;
+    }
+    used.add(folder+'/'+name.toLowerCase());
+    try{
+      const { data, error } = await sb.storage.from(EVIDENCE_BUCKET).download(ev.storagePath);
+      if(error || !data) throw error || new Error('empty');
+      root.folder(folder).file(name, data);
+    }catch(e){ console.error('evidence download failed', ev.storagePath, e); failed++; }
+  }
+  btn.textContent = 'Building ZIP…';
+  try{
+    const blob = await zip.generateAsync({type:'blob', compression:'STORE'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `${parent} - Evidence.zip`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 10000);
+    toast(failed ? `ZIP downloaded — ${failed} file(s) could not be fetched` : `ZIP downloaded (${items.length} files)`);
+  }catch(e){ console.error(e); toast('Could not build the ZIP'); }
+  btn.textContent = label; btn.disabled = false;
 }
 
 /* ---------------- init ---------------- */
